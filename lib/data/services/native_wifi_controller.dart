@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 import '../models/network_model.dart';
@@ -68,12 +67,8 @@ class NativeWiFiController {
       // Disconnect from current network first
       await _disconnectCurrent();
 
-      // Determine connection method based on Android version and security type
-      if (Platform.isAndroid) {
-        return await _connectAndroid(ssid, password, securityType, joinOnce);
-      } else {
-        return await _connectIOS(ssid, password, securityType);
-      }
+      // Android connection method based on version and security type
+      return await _connectAndroid(ssid, password, securityType, joinOnce);
       
     } catch (e) {
       developer.log('Native connection failed: $e');
@@ -330,20 +325,6 @@ class NativeWiFiController {
     }
   }
 
-  /// iOS connection (limited functionality)
-  Future<WiFiConnectionResult> _connectIOS(String ssid, String password, SecurityType securityType) async {
-    try {
-      developer.log('iOS connection attempted (limited functionality)');
-      
-      // iOS detected - platform has limited Wi-Fi control capabilities
-      developer.log('❌ iOS platform has limited Wi-Fi control - platform not supported');
-      return WiFiConnectionResult.notSupported;
-      
-    } catch (e) {
-      developer.log('iOS connection error: $e');
-      return WiFiConnectionResult.notSupported;
-    }
-  }
 
   /// Disconnect from current Wi-Fi network
   Future<bool> disconnectFromCurrent() async {
@@ -388,14 +369,12 @@ class NativeWiFiController {
       }
       
       // Step 2: Try platform channel disconnect
-      if (Platform.isAndroid) {
-        try {
-          final result = await _channel.invokeMethod('disconnect');
-          developer.log('✅ Platform channel disconnect result: $result');
-          disconnectAttempted = true;
-        } catch (e) {
-          developer.log('❌ Platform channel disconnect failed: $e');
-        }
+      try {
+        final result = await _channel.invokeMethod('disconnect');
+        developer.log('✅ Platform channel disconnect result: $result');
+        disconnectAttempted = true;
+      } catch (e) {
+        developer.log('❌ Platform channel disconnect failed: $e');
       }
       
       if (!disconnectAttempted) {
@@ -430,7 +409,7 @@ class NativeWiFiController {
           }
           
           // For Android 13, try additional force disconnect on persistent connections
-          if (round == 2 && attempt == 3 && Platform.isAndroid) {
+          if (round == 2 && attempt == 3) {
             developer.log('🔄 Android 13: Attempting force disconnect for persistent connection');
             try {
               // Try to disable and re-enable WiFi (more aggressive)
@@ -684,7 +663,7 @@ class NativeWiFiController {
   /// Get Android API level
   Future<int> _getAndroidApiLevel() async {
     try {
-      if (!Platform.isAndroid) return 0;
+      // Android API level detection
       
       final apiLevel = await _channel.invokeMethod('getApiLevel');
       return apiLevel ?? 29; // Default to API 29 if unknown

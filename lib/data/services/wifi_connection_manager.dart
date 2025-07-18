@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/network_model.dart';
@@ -165,9 +164,8 @@ class WiFiConnectionManager {
     try {
       developer.log('🔐 Checking Wi-Fi connection permissions for Android 13...');
       
-      if (Platform.isAndroid) {
-        // Android 13+ requires NEARBY_WIFI_DEVICES permission for Wi-Fi scanning
-        final wifiPermissionStatus = await Permission.nearbyWifiDevices.status;
+      // Android 13+ requires NEARBY_WIFI_DEVICES permission for Wi-Fi scanning
+      final wifiPermissionStatus = await Permission.nearbyWifiDevices.status;
         developer.log('📱 Android 13 - NEARBY_WIFI_DEVICES status: $wifiPermissionStatus');
         
         // Request Wi-Fi permission if not granted
@@ -212,18 +210,6 @@ class WiFiConnectionManager {
         developer.log('   - Can proceed: $canProceed');
         
         return canProceed;
-      }
-      
-      // iOS only needs location permission
-      final locationStatus = await Permission.location.status;
-      if (locationStatus.isDenied) {
-        final locationResult = await Permission.location.request();
-        return locationResult.isGranted;
-      }
-      
-      final iosPermissionGranted = locationStatus.isGranted;
-      developer.log('✅ iOS permissions check: Location=${locationStatus.isGranted}');
-      return iosPermissionGranted;
       
     } catch (e) {
       developer.log('❌ Permission check failed: $e');

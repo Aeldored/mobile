@@ -29,15 +29,11 @@ class WiFiConnectionService {
       
       _initialized = true;
       
-      // Android 13 specific initialization logging
-      if (Platform.isAndroid) {
-        developer.log('📱 WiFiConnectionService initialized on Android device');
-        developer.log('🎯 Platform: ${Platform.operatingSystemVersion}');
-        developer.log('🔧 Native controller initialized for Android 13+ compatibility');
-        developer.log('🚀 Native controller initialized for system settings integration');
-      } else {
-        developer.log('🍎 WiFiConnectionService initialized on iOS device');
-      }
+      // Android specific initialization logging
+      developer.log('📱 WiFiConnectionService initialized on Android device');
+      developer.log('🎯 Platform: ${Platform.operatingSystemVersion}');
+      developer.log('🔧 Native controller initialized for Android 13+ compatibility');
+      developer.log('🚀 Native controller initialized for system settings integration');
     } catch (e) {
       developer.log('❌ Failed to initialize WiFiConnectionService: $e');
     }
@@ -205,8 +201,7 @@ class WiFiConnectionService {
       }
       
       // Check Wi-Fi permission for Android 13+
-      if (Platform.isAndroid) {
-        final wifiStatus = await Permission.nearbyWifiDevices.status;
+      final wifiStatus = await Permission.nearbyWifiDevices.status;
         if (wifiStatus.isPermanentlyDenied) {
           developer.log('Wi-Fi permission permanently denied');
           return false;
@@ -217,11 +212,7 @@ class WiFiConnectionService {
           return false;
         }
         
-        return locationStatus.isGranted && wifiStatus.isGranted;
-      }
-      
-      // iOS only needs location permission
-      return locationStatus.isGranted;
+      return locationStatus.isGranted && wifiStatus.isGranted;
     } catch (e) {
       developer.log('Permission check failed: $e');
       return false;

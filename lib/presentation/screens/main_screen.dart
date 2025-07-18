@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:io' show Platform, exit;
+import 'dart:io' show exit;
 import '../widgets/app_header.dart';
 import '../widgets/bottom_navigation.dart';
 import '../widgets/settings_drawer.dart';
@@ -145,18 +145,8 @@ class _MainScreenState extends State<MainScreen>
       // Add a brief delay to ensure UI cleanup
       await Future.delayed(const Duration(milliseconds: 100));
       
-      // Exit the app properly based on platform
-      if (Platform.isAndroid) {
-        // On Android, use SystemNavigator.pop() for clean exit
-        await SystemNavigator.pop();
-      } else if (Platform.isIOS) {
-        // On iOS, exit() is generally not recommended, but can be used
-        // Note: iOS apps should generally not exit programmatically
-        exit(0);
-      } else {
-        // Fallback for other platforms
-        exit(0);
-      }
+      // Exit the app properly for Android
+      await SystemNavigator.pop();
     } catch (e) {
       // Fallback exit if cleanup fails
       exit(0);

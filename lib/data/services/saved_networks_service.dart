@@ -1,5 +1,4 @@
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 import '../models/network_model.dart';
@@ -18,10 +17,9 @@ class SavedNetworksService {
     try {
       final List<SavedNetwork> savedNetworks = [];
       
-      // Try to get saved networks from device (platform-specific)
-      if (Platform.isAndroid) {
-        // Enhanced: Use native controller for system saved networks
-        try {
+      // Try to get saved networks from device (Android-specific)
+      // Enhanced: Use native controller for system saved networks
+      try {
           final nativeController = NativeWiFiController();
           final systemNetworks = await nativeController.getSystemSavedNetworks();
           
@@ -40,11 +38,6 @@ class SavedNetworksService {
         } catch (e) {
           developer.log('Failed to get system networks, using local storage: $e');
         }
-      } else if (Platform.isIOS) {
-        // iOS - more restrictive, can't get saved networks directly
-        // Fall back to local storage of previously connected networks
-        developer.log('iOS: Using local storage for saved networks (system limitation)');
-      }
       
       // Always include locally stored networks
       final localSavedNetworks = await _getLocalSavedNetworks();
@@ -227,29 +220,23 @@ class SavedNetworksService {
   /// Attempt connection to network
   Future<bool> _attemptConnection(String ssid, String? password) async {
     try {
-      if (Platform.isAndroid) {
-        // Use WiFiIoT plugin for connection
-        final isEnabled = await WiFiForIoTPlugin.isEnabled();
-        if (!isEnabled) {
-          developer.log('WiFi is not enabled');
-          return false;
-        }
-        
-        // For demo purposes, simulate connection
-        // In production, use: await WiFiForIoTPlugin.connect(ssid, password: password);
-        await Future.delayed(Duration(seconds: 2));
-        
-        // Simulate success rate based on network type
-        final random = DateTime.now().millisecondsSinceEpoch % 10;
-        final success = random < 8; // 80% success rate
-        
-        developer.log('Auto-connection to $ssid: ${success ? 'success' : 'failed'}');
-        return success;
-      } else {
-        // iOS - redirect to settings
-        developer.log('iOS: Auto-connection requires system settings');
+      // Use WiFiIoT plugin for connection (Android)
+      final isEnabled = await WiFiForIoTPlugin.isEnabled();
+      if (!isEnabled) {
+        developer.log('WiFi is not enabled');
         return false;
       }
+      
+      // For demo purposes, simulate connection
+      // In production, use: await WiFiForIoTPlugin.connect(ssid, password: password);
+      await Future.delayed(Duration(seconds: 2));
+      
+      // Simulate success rate based on network type
+      final random = DateTime.now().millisecondsSinceEpoch % 10;
+      final success = random < 8; // 80% success rate
+      
+      developer.log('Auto-connection to $ssid: ${success ? 'success' : 'failed'}');
+      return success;
     } catch (e) {
       developer.log('Error attempting connection: $e');
       return false;

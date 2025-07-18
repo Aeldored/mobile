@@ -1,5 +1,4 @@
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
@@ -49,7 +48,7 @@ class _WiFiConnectionDialogState extends State<WiFiConnectionDialog> {
     return 33;
   }
 
-  bool get _isModernAndroid => Platform.isAndroid && _androidApiLevel >= 29;
+  bool get _isModernAndroid => _androidApiLevel >= 29;
 
   @override
   Widget build(BuildContext context) {
