@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze:*)",
+      "Bash(mkdir:*)",
+      "Bash(grep:*)",
+      "Bash(flutter run:*)",
+      "Bash(flutter pub:*)",
+      "Bash(flutter clean:*)",
+      "Bash(/mnt/c/Users/Dred/sdk/flutter/bin/flutter analyze)",
+      "Bash(sed:*)",
+      "Bash(dos2unix:*)",
+      "Bash(find:*)",
+      "Bash(unix2dos:*)",
+      "Bash(/mnt/c/Users/Dred/sdk/flutter/bin/flutter.bat analyze)",
+      "Bash(cmd.exe:*)",
+      "Bash(mv:*)",
+      "Bash(/mnt/c/Users/Dred/sdk/flutter/bin/flutter pub get)",
+      "Bash(flutter:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(-exec dart analyze {})",
+      "Bash(dart:*)",
+      "Bash(rm:*)",
+      "Bash(rg:*)"
+    ],
+    "deny": []
+  }
+}
