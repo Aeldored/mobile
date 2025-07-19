@@ -9,7 +9,7 @@ class DisConXApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'DisConX | DICT Secure Connect',
-      debugShowCheckedModeBanner: false,
+      debugShowCheckedModeBanner: false, 
       theme: AppTheme.lightTheme,
       home: const SplashScreen(),
     );

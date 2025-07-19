@@ -52,7 +52,7 @@ void main() async {
       providers: [
         // Independent providers
         ChangeNotifierProvider(create: (_) => AlertProvider()),
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()), 
         ChangeNotifierProvider(create: (_) => MapStateProvider(prefs)),
         
         // NetworkProvider depends on AlertProvider
