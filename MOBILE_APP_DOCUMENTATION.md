@@ -106,75 +106,109 @@ The key was maintaining focus on their core mission: protecting citizens from Wi
 
 ```mermaid
 graph TB
-    subgraph "Mobile Application Layer"
-        A[Flutter Mobile App] --> B[Presentation Layer]
-        B --> C[State Management]
-        C --> D[Business Logic]
-        D --> E[Data Layer]
+    subgraph "📱 Mobile Application Layer"
+        A["🎯 Flutter Mobile App<br/>📱 Cross-Platform Mobile Framework"] --> B["🎨 Presentation Layer<br/>📊 UI Components & Screen Management"]
+        B --> C["🔄 State Management<br/>📦 BLoC/Provider State Handling"]
+        C --> D["⚙️ Business Logic<br/>🧠 Core Application Logic & Rules"]
+        D --> E["💾 Data Layer<br/>🔌 Repository & Data Access Pattern"]
     end
     
-    subgraph "Cloud Infrastructure"
-        F[Firebase Services] --> G[Firestore Database]
-        F --> H[Firebase Analytics]
-        F --> I[Firebase Performance]
-        F --> J[Firebase Messaging]
+    subgraph "☁️ Cloud Infrastructure"
+        F["🔥 Firebase Services<br/>🌐 Backend-as-a-Service Platform"] --> G["🗃️ Firestore Database<br/>📄 NoSQL Document Database"]
+        F --> H["📈 Firebase Analytics<br/>📊 User Behavior & App Analytics"]
+        F --> I["⚡ Firebase Performance<br/>🎯 Real-time Performance Monitoring"]
+        F --> J["💬 Firebase Messaging<br/>🔔 Push Notification Service"]
+        T["🔐 Firebase Auth<br/>🛡️ Authentication & Authorization Service"]
     end
     
-    subgraph "Government Systems"
-        K[DICT Whitelist API] --> L[Government Database]
-        M[Location Services] --> N[Network Verification]
+    subgraph "🏛️ Government Admin System"
+        K["🖥️ Web Admin Interface<br/>🌐 DICT Management Dashboard"] --> L["📡 Access Point Manager<br/>🔧 Network Configuration Tool"]
+        L --> M["📋 Whitelist Upload<br/>📤 Approved Network Registry"]
+        M -.->|"☁️ Data Sync"| F
+        K --> N["👨‍💼 DICT Personnel<br/>🏛️ Government Administrators"]
+        K -.->|"🔐 Authentication"| T
     end
     
-    E --> F
-    E --> K
-    E --> M
+    E -.->|"🔗 API Integration"| F
     
-    subgraph "External Services"
-        O[Wi-Fi Hardware] --> P[Network Scanning]
-        Q[GPS Services] --> R[Location Data]
+    subgraph "🔧 External Services"
+        O["📡 Wi-Fi Hardware<br/>🌐 Network Equipment & Routers"] --> P["🔍 Network Scanning<br/>📶 Signal Detection & Analysis"]
+        Q["🛰️ GPS Services<br/>🗺️ Satellite Navigation System"] --> R["📍 Location Data<br/>🎯 Geographic Coordinate Tracking"]
     end
     
-    D --> O
-    D --> Q
+    D -.->|"📡 Hardware Control"| O
+    D -.->|"🛰️ Location Requests"| Q
+
+    %% Enhanced Styling
+    classDef mobileLayer fill:#e1f5fe,stroke:#0277bd,stroke-width:3px,color:#000,font-weight:bold
+    classDef cloudLayer fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px,color:#000,font-weight:bold
+    classDef govLayer fill:#fff3e0,stroke:#ef6c00,stroke-width:3px,color:#000,font-weight:bold
+    classDef externalLayer fill:#e8f5e8,stroke:#388e3c,stroke-width:3px,color:#000,font-weight:bold
+    classDef adminPersonnel fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000,font-weight:bold
+    classDef authService fill:#e8eaf6,stroke:#3f51b5,stroke-width:3px,color:#000,font-weight:bold
+    
+    class A,B,C,D,E mobileLayer
+    class F,G,H,I,J cloudLayer
+    class K,L,M govLayer
+    class O,P,Q,R externalLayer
+    class N adminPersonnel
+    class T authService
 ```
 
 ### Use Case Diagram
 
 ```mermaid
 graph LR
-    subgraph "Actors"
-        User[👤 User]
-        Admin[👨‍💼 DICT Admin]
-        System[🤖 System]
+    subgraph "👥 System Actors"
+        User["👤 User<br/>📱 Mobile App User"]
+        Admin["👨‍💼 DICT Admin<br/>🏛️ Government Administrator"]
+        System["🤖 System<br/>⚙️ Automated Processes"]
     end
     
-    subgraph "Use Cases"
-        UC1[Scan Wi-Fi Networks]
-        UC2[Detect Evil Twins]
-        UC3[Connect to Safe Networks]
-        UC4[Receive Security Alerts]
-        UC5[Access Education Content]
-        UC6[Manage Whitelist]
-        UC7[Generate Reports]
-        UC8[Monitor Threats]
-        UC9[Validate Network Security]
+    subgraph "🔒 Security Use Cases"
+        UC1["📡 Scan Wi-Fi Networks<br/>🔍 Discover Available Networks"]
+        UC2["🚨 Detect Evil Twins<br/>⚠️ Identify Malicious Networks"]
+        UC3["✅ Connect to Safe Networks<br/>🔐 Secure Network Connection"]
+        UC4["🔔 Receive Security Alerts<br/>⚡ Real-time Threat Notifications"]
+        UC9["🛡️ Validate Network Security<br/>✔️ Verify Network Authenticity"]
     end
     
-    User --> UC1
-    User --> UC3
-    User --> UC4
-    User --> UC5
+    subgraph "📚 Educational Use Cases"
+        UC5["📖 Access Education Content<br/>🎓 Cybersecurity Learning Materials"]
+    end
     
-    Admin --> UC6
-    Admin --> UC7
-    Admin --> UC8
+    subgraph "🛠️ Administrative Use Cases"
+        UC6["📋 Manage Whitelist<br/>✏️ Maintain Approved Networks"]
+        UC7["📊 Generate Reports<br/>📈 Analytics & Insights"]
+        UC8["👁️ Monitor Threats<br/>🔍 Real-time Security Monitoring"]
+    end
     
-    System --> UC2
-    System --> UC9
+    User -.->|"📱 Initiates"| UC1
+    User -.->|"🔗 Requests"| UC3
+    User -.->|"📩 Receives"| UC4
+    User -.->|"📚 Accesses"| UC5
     
-    UC1 -.-> UC2
-    UC2 -.-> UC4
-    UC3 -.-> UC9
+    Admin -.->|"✏️ Maintains"| UC6
+    Admin -.->|"📊 Creates"| UC7
+    Admin -.->|"👁️ Oversees"| UC8
+    
+    System -.->|"🤖 Executes"| UC2
+    System -.->|"✅ Performs"| UC9
+    
+    UC1 -.->|"🔄 Triggers"| UC2
+    UC2 -.->|"⚠️ Generates"| UC4
+    UC3 -.->|"🔍 Requires"| UC9
+
+    %% Styling
+    classDef actors fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#000
+    classDef security fill:#ffebee,stroke:#d32f2f,stroke-width:3px,color:#000
+    classDef education fill:#e8f5e8,stroke:#388e3c,stroke-width:3px,color:#000
+    classDef admin fill:#fff3e0,stroke:#f57c00,stroke-width:3px,color:#000
+    
+    class User,Admin,System actors
+    class UC1,UC2,UC3,UC4,UC9 security
+    class UC5 education
+    class UC6,UC7,UC8 admin
 ```
 
 ### Data Flow Diagram (Level 1)
@@ -182,9 +216,9 @@ graph LR
 ```mermaid
 graph TD
     subgraph "External Entities"
-        E1[User Device]
+        E1[Mobile App User]
         E2[Wi-Fi Networks]
-        E3[DICT Database]
+        E3[DICT Personnel]
         E4[GPS System]
     end
     
@@ -194,13 +228,15 @@ graph TD
         P3[3.0 Threat Detection]
         P4[4.0 Alert Generation]
         P5[5.0 Education System]
+        P6[6.0 Whitelist Management]
     end
     
     subgraph "Data Stores"
         D1[(D1: Local Cache)]
         D2[(D2: User Preferences)]
-        D3[(D3: Network Database)]
+        D3[(D3: Firebase Whitelist)]
         D4[(D4: Alert History)]
+        D5[(D5: Access Point Database)]
     end
     
     E1 --> P1
@@ -209,13 +245,15 @@ graph TD
     P1 --> P2
     P2 --> D3
     P2 --> P3
-    E3 --> P2
     P3 --> P4
     P4 --> E1
     P4 --> D4
     E1 --> P5
     P5 --> D2
     E4 --> P1
+    E3 --> P6
+    P6 --> D3
+    P6 --> D5
 ```
 
 ### Component Architecture
@@ -309,6 +347,58 @@ graph TB
     SC2 --> ES2
     SC3 --> ES2
     SC4 --> ES3
+```
+
+### Sequence Diagram - Network Scanning & Threat Detection
+
+```mermaid
+%%{init: {"sequence": {
+  "actorFontSize": 48,
+  "messageFontSize": 44,
+  "noteFontSize": 40
+}}}%%
+sequenceDiagram
+    participant U as User
+    participant UI as Mobile App UI
+    participant NS as Network Scanner
+    participant ETD as Evil Twin Detector
+    participant GW as Government Whitelist
+    participant AM as Alert Manager
+    participant LS as Location Service
+
+    U->>UI: Tap "Scan Networks"
+    UI->>NS: initiateScan()
+    NS->>LS: getCurrentLocation()
+    LS-->>NS: location data
+
+    loop Network Discovery
+        NS->>NS: scanWiFiNetworks()
+        NS-->>UI: networkFound(network)
+        UI-->>U: Display network
+    end
+
+    NS->>ETD: analyzeNetworks(networkList)
+
+    par Threat Analysis
+        ETD->>ETD: checkSignalPatterns()
+        ETD->>ETD: analyzeMacAddresses()
+        ETD->>GW: verifyWhitelist(networks)
+        GW-->>ETD: whitelistData
+    end
+
+    ETD->>ETD: calculateThreatScore()
+
+    alt Threat Detected
+        ETD->>AM: generateAlert(threatData)
+        AM->>UI: displayAlert()
+        UI->>U: Show threat warning
+        U->>UI: Acknowledge alert
+    else Safe Networks
+        ETD-->>UI: safeNetworks(networkList)
+        UI-->>U: Display safe networks
+    end
+
+    Note over U,LS: Real-time monitoring continues in background
 ```
 
 ---
