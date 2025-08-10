@@ -10,12 +10,21 @@
 
 ### Ready to Protect Your Wi-Fi? Get DiSConX Now!
 
-**🔗 [Download DiSConX Mobile APK (v1.0.0)](releases/disconx-mobile-v1.0.0.apk)**
+### 📥 Direct Download Options:
 
-> **Latest Release**: Version 1.0.0 | **Size**: ~80 MB | **Updated**: August 2025
+**🚀 [⬇️ DOWNLOAD APK - Direct Download](https://github.com/Aeldored/disconx-suite/raw/main/mobile/releases/disconx-mobile-v1.0.0.apk)**
+
+**Alternative Download Methods:**
+- **GitHub Releases**: [Browse all releases](https://github.com/Aeldored/disconx-suite/releases)
+- **Repository Files**: [View in repository](releases/disconx-mobile-v1.0.0.apk)
+
+> **Latest Version**: v1.0.0 | **File Size**: ~80 MB | **Build Date**: August 2025
 
 #### 📋 Installation Instructions:
-1. **📥 Download the APK** from the releases section above
+1. **📥 Download the APK**:
+   - Click the **"⬇️ DOWNLOAD APK - Direct Download"** button above
+   - APK will automatically download to your device's Downloads folder
+   - File name: `disconx-mobile-v1.0.0.apk`
 2. **⚙️ Enable Installation from Unknown Sources**:
    - Go to **Settings** > **Security & Privacy** > **Install unknown apps**
    - Select your browser/file manager and toggle **"Allow from this source"**
