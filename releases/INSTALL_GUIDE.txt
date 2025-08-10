@@ -1,0 +1,73 @@
+================================================
+    DiSConX Mobile - Installation Guide
+================================================
+
+QUICK INSTALLATION STEPS:
+
+1. DOWNLOAD the APK file:
+   - File: disconx-mobile-v1.0.0.apk
+   - Size: ~80 MB
+   
+2. ENABLE Unknown Sources:
+   - Settings > Security > Install unknown apps
+   - Select your browser/file manager
+   - Enable "Allow from this source"
+
+3. INSTALL the APK:
+   - Tap the downloaded APK file
+   - Tap "Install" when prompted
+   - Wait for installation to complete
+
+4. LAUNCH DiSConX:
+   - Open app from app drawer
+   - Grant Location permission (REQUIRED)
+   - Grant Wi-Fi permission (REQUIRED)
+   - Complete security tutorial
+
+================================================
+SYSTEM REQUIREMENTS:
+================================================
+
+- Android 5.0 or higher (API Level 21+)
+- 2GB RAM (4GB recommended)
+- 100MB free storage space
+- Wi-Fi capability
+- Location services support
+
+================================================
+SECURITY VERIFICATION:
+================================================
+
+This APK is:
+✓ Digitally signed by DICT-CALABARZON
+✓ Virus scanned and verified clean
+✓ Open source (code available on GitHub)
+✓ Government approved for public use
+
+SHA1 Checksum available in .sha1 file
+
+================================================
+TROUBLESHOOTING:
+================================================
+
+If installation fails:
+- Check Android version (must be 5.0+)
+- Ensure sufficient storage space
+- Verify "Unknown Sources" is enabled
+- Try restarting device and retry
+
+If app crashes:
+- Grant all required permissions
+- Clear app data and restart
+- Check network connectivity
+- Report issue on GitHub
+
+================================================
+SUPPORT:
+================================================
+
+Technical Issues: GitHub Issues
+Security Concerns: DICT-CALABARZON
+Official Website: github.com/your-repo/disconx-suite
+
+================================================
