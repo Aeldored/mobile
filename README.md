@@ -73,6 +73,25 @@ Empowering every Filipino with the tools and knowledge to safely navigate the di
 - **Firebase Integration** - Cloud services for data sync and analytics
 - **Cross-platform Support** - Android (primary) with iOS roadmap
 - **Performance Optimized** - 60fps UI with efficient memory usage
+### Security & Detection
+- **Real-time WiFi Scanning** - Comprehensive network discovery and analysis
+- **Evil Twin Detection** - Advanced algorithms using signal pattern analysis and MAC verification
+- **Threat Scoring System** - Dynamic risk assessment (0-100 scale) for detected networks
+- **Security Alerts** - Instant notifications for potential threats
+- **Government Whitelist Integration** - Verification against approved network databases
+
+### User Experience
+- **Interactive Dashboard** - Visual network maps and security status
+- **Educational Content** - Cybersecurity learning modules and quizzes
+- **Offline Mode** - Full functionality without internet connection
+- **Material Design 3** - Modern, accessible user interface
+- **Multi-language Support** - English and Filipino/Tagalog (planned)
+
+### Technical Features
+- **Clean Architecture** - Scalable and maintainable codebase
+- **Firebase Integration** - Cloud services for data sync and analytics
+- **Cross-platform Support** - Android (primary) with iOS roadmap
+- **Performance Optimized** - 60fps UI with efficient memory usage
 
 ## Requirements
 
@@ -120,7 +139,44 @@ lib/
 │   │   └── settings/      # User preferences and configuration
 │   └── widgets/           # Reusable UI components
 └── providers/             # State management providers
+├── main.dart              # Application entry point
+├── app.dart               # Root app configuration
+├── core/                  # Core utilities and theming
+│   ├── constants/         # App-wide constants
+│   ├── theme/             # Material Design 3 theming
+│   └── utils/             # Helper utilities
+├── data/                  # Data management layer
+│   ├── models/            # Data models and serialization
+│   ├── repositories/      # Repository pattern implementation
+│   └── services/          # External service integrations
+├── presentation/          # User interface layer
+│   ├── screens/           # Application screens
+│   │   ├── home/          # Dashboard and network overview
+│   │   ├── scan/          # WiFi scanning interface
+│   │   ├── alerts/        # Security alerts and threats
+│   │   ├── education/     # Learning modules and quizzes
+│   │   └── settings/      # User preferences and configuration
+│   └── widgets/           # Reusable UI components
+└── providers/             # State management providers
 ```
+
+## Architecture
+
+DisConX follows **Clean Architecture** principles with clear separation of concerns:
+
+- **Presentation Layer**: Flutter widgets and screens using Material Design 3
+- **Business Logic**: State management with Provider pattern
+- **Data Layer**: Repository pattern with intelligent caching
+- **External Services**: Firebase integration and native platform services
+
+## Firebase Integration
+
+The app is Firebase-ready with the following services configured:
+- **Authentication** - Anonymous and email-based auth
+- **Firestore** - Real-time data synchronization
+- **Storage** - Whitelist file downloads
+- **Analytics** - User behavior tracking
+- **Performance Monitoring** - App performance metrics
 
 ## Architecture
 
