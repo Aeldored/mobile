@@ -3,9 +3,13 @@ import 'dart:async';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/ui_constants.dart';
 import '../../../data/models/education_content_model.dart';
-import 'widgets/learning_module_card.dart';
+import '../../../data/services/education_content_service.dart';
+import '../../../data/services/quiz_history_service.dart';
+import 'widgets/enhanced_learning_module_card.dart';
 import 'quiz_screen.dart';
-import 'learning_content_screen.dart';
+import 'quiz_history_screen.dart';
+import 'article_reader_screen.dart';
+import 'all_articles_screen.dart';
 
 class EducationScreen extends StatefulWidget {
   const EducationScreen({super.key});
@@ -34,6 +38,10 @@ class _EducationScreenState extends State<EducationScreen> {
   int _currentCarouselIndex = 0;
   final PageController _carouselController = PageController(viewportFraction: 0.85);
   Timer? _carouselTimer;
+  final QuizHistoryService _quizHistoryService = QuizHistoryService();
+  final EducationContentService _educationService = EducationContentService();
+  List<EducationContentModel> _dynamicArticles = [];
+  bool _isLoadingArticles = true;
   final List<SecurityTip> _securityTips = [
     SecurityTip(
       id: '1',
@@ -65,32 +73,6 @@ class _EducationScreenState extends State<EducationScreen> {
     ),
   ];
 
-  final List<EducationContentModel> _learningModules = [
-    EducationContentModel(
-      id: '1',
-      title: 'Understanding Evil Twin Attacks',
-      description: 'Learn how attackers create fake Wi-Fi networks and how to spot them',
-      type: ContentType.article,
-      difficulty: DifficultyLevel.beginner,
-      estimatedMinutes: 5,
-      imageUrl: 'assets/images/image2.png',
-      tags: ['security', 'evil-twin', 'wi-fi'],
-      viewCount: 1200,
-      publishedDate: DateTime.now().subtract(const Duration(days: 7)),
-    ),
-    EducationContentModel(
-      id: '2',
-      title: 'Public Wi-Fi Safety Guide',
-      description: 'Essential tips for staying safe when using public Wi-Fi networks',
-      type: ContentType.article,
-      difficulty: DifficultyLevel.beginner,
-      estimatedMinutes: 8,
-      imageUrl: 'assets/images/image1.png',
-      tags: ['safety', 'public-wifi', 'tips'],
-      viewCount: 856,
-      publishedDate: DateTime.now().subtract(const Duration(days: 14)),
-    ),
-  ];
 
   final List<EducationContentModel> _quizzes = [
     EducationContentModel(
@@ -138,6 +120,12 @@ class _EducationScreenState extends State<EducationScreen> {
   void initState() {
     super.initState();
     _startCarouselAutoPlay();
+    _loadDynamicArticles();
+    _initializeQuizHistory();
+  }
+  
+  Future<void> _initializeQuizHistory() async {
+    await _quizHistoryService.initialize();
   }
 
   @override
@@ -168,10 +156,38 @@ class _EducationScreenState extends State<EducationScreen> {
     _startCarouselAutoPlay();
   }
 
+  Future<void> _loadDynamicArticles() async {
+    try {
+      // Show only 2 featured articles in learn tab
+      final articles = await _educationService.getMixedCategoryContent(limit: 2);
+      if (mounted) {
+        setState(() {
+          _dynamicArticles = articles;
+          _isLoadingArticles = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingArticles = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshContent() async {
+    setState(() {
+      _isLoadingArticles = true;
+    });
+    await _loadDynamicArticles();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+    return RefreshIndicator(
+      onRefresh: _refreshContent,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -193,31 +209,74 @@ class _EducationScreenState extends State<EducationScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Learning Modules',
+                      'Featured Articles',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text('View All'),
-                    ),
+                    if (_dynamicArticles.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: _showAllArticles,
+                        icon: const Icon(Icons.article, size: 16),
+                        label: const Text('View All'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _learningModules.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    return LearningModuleCard(
-                      module: _learningModules[index],
-                      onStart: () => _startModule(_learningModules[index]),
-                    );
-                  },
-                ),
+                _isLoadingArticles
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    : _dynamicArticles.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.article_outlined,
+                                    size: 48,
+                                    color: Colors.grey[400],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No articles available',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Check back later for new content',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[500],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _dynamicArticles.length,
+                            separatorBuilder: (context, index) => const SizedBox(height: 16),
+                            itemBuilder: (context, index) {
+                              return EnhancedLearningModuleCard(
+                                module: _dynamicArticles[index],
+                                onStart: () => _startDynamicArticle(_dynamicArticles[index]),
+                              );
+                            },
+                          ),
                 
                 const SizedBox(height: 16),
                 
@@ -232,9 +291,22 @@ class _EducationScreenState extends State<EducationScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text('View All'),
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => QuizHistoryScreen(
+                              historyService: _quizHistoryService,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.history, size: 16),
+                      label: const Text('History'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                      ),
                     ),
                   ],
                 ),
@@ -299,32 +371,6 @@ class _EducationScreenState extends State<EducationScreen> {
                                 ),
                               ],
                             ),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 32,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    color: Colors.green[100],
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.workspace_premium,
-                                    color: AppColors.success,
-                                    size: 18,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Get certified',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
                           ],
                         );
                         },
@@ -363,6 +409,7 @@ class _EducationScreenState extends State<EducationScreen> {
                 )),
         ],
       ),
+    ),
     );
   }
 
@@ -629,11 +676,11 @@ class _EducationScreenState extends State<EducationScreen> {
     }
   }
 
-  void _startModule(EducationContentModel module) {
+  void _startDynamicArticle(EducationContentModel article) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => LearningContentScreen(module: module),
+        builder: (context) => ArticleReaderScreen(article: article),
       ),
     );
   }
@@ -641,7 +688,9 @@ class _EducationScreenState extends State<EducationScreen> {
   void _startQuiz(EducationContentModel quiz) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const QuizScreen()),
+      MaterialPageRoute(
+        builder: (context) => QuizScreen(historyService: _quizHistoryService),
+      ),
     );
   }
 
@@ -659,6 +708,15 @@ class _EducationScreenState extends State<EducationScreen> {
             // In production, copy URL to clipboard
           },
         ),
+      ),
+    );
+  }
+
+  void _showAllArticles() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AllArticlesScreen(),
       ),
     );
   }

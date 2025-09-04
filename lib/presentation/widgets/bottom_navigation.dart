@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/alert_provider.dart';
+import '../../data/models/alert_model.dart';
 
 class BottomNavigation extends StatefulWidget {
   final int currentIndex;
@@ -111,10 +114,24 @@ class _BottomNavigationState extends State<BottomNavigation>
                 label: 'Scan',
                 index: 1,
               ),
-              _buildNavItem(
-                icon: Icons.notifications,
-                label: 'Alerts',
-                index: 2,
+              Consumer<AlertProvider>(
+                builder: (context, alertProvider, child) {
+                  // Count unreported threat suggestions
+                  final unreportedCount = alertProvider.alerts
+                      .where((alert) => 
+                          (alert.type == AlertType.suspiciousNetwork || 
+                           alert.type == AlertType.evilTwin || 
+                           alert.type == AlertType.reportSuggestion) &&
+                          alert.threatReportStatus == ThreatReportStatus.pending)
+                      .length;
+                  
+                  return _buildNavItem(
+                    icon: Icons.notifications,
+                    label: 'Alerts',
+                    index: 2,
+                    badgeCount: unreportedCount > 0 ? unreportedCount : null,
+                  );
+                },
               ),
               _buildNavItem(
                 icon: Icons.menu_book,
@@ -132,6 +149,7 @@ class _BottomNavigationState extends State<BottomNavigation>
     required IconData icon,
     required String label,
     required int index,
+    int? badgeCount,
   }) {
     final isSelected = widget.currentIndex == index;
     final color = isSelected ? AppColors.primary : AppColors.gray;
@@ -157,20 +175,49 @@ class _BottomNavigationState extends State<BottomNavigation>
                     mainAxisAlignment: MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: EdgeInsets.all(isSelected ? 6 : 4),
-                        decoration: BoxDecoration(
-                          color: isSelected 
-                              ? AppColors.primary.withValues(alpha: 0.1)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Icon(
-                          icon,
-                          color: color,
-                          size: isSelected ? 24 : 22,
-                        ),
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: EdgeInsets.all(isSelected ? 6 : 4),
+                            decoration: BoxDecoration(
+                              color: isSelected 
+                                  ? AppColors.primary.withValues(alpha: 0.1)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Icon(
+                              icon,
+                              color: color,
+                              size: isSelected ? 24 : 22,
+                            ),
+                          ),
+                          if (badgeCount != null && badgeCount > 0)
+                            Positioned(
+                              right: -2,
+                              top: -2,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                decoration: BoxDecoration(
+                                  color: AppColors.danger,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.white, width: 1),
+                                ),
+                                child: Text(
+                                  badgeCount > 99 ? '99+' : '$badgeCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.0,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 3),
                       AnimatedDefaultTextStyle(

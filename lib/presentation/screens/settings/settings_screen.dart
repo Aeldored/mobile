@@ -31,17 +31,27 @@ class SettingsScreen extends StatelessWidget {
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'App Settings',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.settings,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Settings',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(height: 4),
+                SizedBox(height: 6),
                 Text(
-                  'Customize DisConX to match your preferences',
+                  'Configure security settings and manage your data',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
@@ -53,56 +63,23 @@ class SettingsScreen extends StatelessWidget {
           
           const SizedBox(height: 16),
           
-          // General Settings
+          // Security Settings
           SettingsSection(
-            title: 'General Settings',
+            title: 'Security Settings',
             children: [
-              Consumer<SettingsProvider>(
-                builder: (context, settings, child) {
-                  final languageName = settings.language == 'en' ? 'English' : 'Filipino';
-                  return SettingsItem(
-                    icon: Icons.language,
-                    iconColor: AppColors.primary,
-                    title: 'Language',
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(languageName, style: TextStyle(color: Colors.grey[600])),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.chevron_right, color: AppColors.gray),
-                      ],
-                    ),
-                    onTap: () => _showLanguageDialog(context),
-                  );
-                },
-              ),
-              Consumer<SettingsProvider>(
-                builder: (context, settings, child) {
-                  return SettingsItem(
-                    icon: Icons.dark_mode,
-                    iconColor: AppColors.primary,
-                    title: 'Dark Mode',
-                    trailing: Switch(
-                      value: settings.isDarkMode,
-                      onChanged: (value) => settings.toggleDarkMode(),
-                      activeColor: AppColors.primary,
-                    ),
-                  );
-                },
-              ),
               Consumer<SettingsProvider>(
                 builder: (context, settings, child) {
                   return SettingsItem(
                     icon: Icons.location_on,
-                    iconColor: AppColors.primary,
+                    iconColor: Colors.blue[600]!,
                     title: 'Location Services',
-                    subtitle: 'Required for finding nearby networks • ${settings.locationStatusText}',
+                    subtitle: 'Essential for WiFi network detection • ${settings.locationStatusText}',
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _buildPermissionStatusIndicator(settings.locationPermissionStatus),
                         const SizedBox(width: 8),
-Switch(
+                        Switch(
                           value: settings.locationEnabled,
                           onChanged: settings.isRequestingLocationPermission 
                               ? null // Disable while requesting
@@ -132,20 +109,11 @@ Switch(
                   );
                 },
               ),
-            ],
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Security Settings
-          SettingsSection(
-            title: 'Security Settings',
-            children: [
               SettingsItem(
                 icon: Icons.router,
-                iconColor: Colors.orange,
+                iconColor: Colors.orange[600]!,
                 title: 'Access Point Manager',
-                subtitle: 'Manage blocked, trusted, and flagged networks',
+                subtitle: 'Manage network whitelist, blacklist, and security flags',
                 trailing: const Icon(Icons.chevron_right, color: AppColors.gray),
                 onTap: () => Navigator.push(
                   context,
@@ -157,10 +125,10 @@ Switch(
               Consumer<SettingsProvider>(
                 builder: (context, settings, child) {
                   return SettingsItem(
-                    icon: Icons.shield,
-                    iconColor: AppColors.danger,
+                    icon: Icons.shield_outlined,
+                    iconColor: Colors.red[600]!,
                     title: 'Auto-Block Suspicious Networks',
-                    subtitle: 'Automatically block detected evil twin networks',
+                    subtitle: 'Automatically prevent connections to detected threats',
                     trailing: Switch(
                       value: settings.autoBlockSuspicious,
                       onChanged: (value) => settings.toggleAutoBlock(),
@@ -172,16 +140,16 @@ Switch(
               Consumer<SettingsProvider>(
                 builder: (context, settings, child) {
                   return SettingsItem(
-                    icon: Icons.notifications,
-                    iconColor: AppColors.warning,
-                    title: 'Alert Notifications',
-                    subtitle: 'Receive alerts for security threats • ${settings.notificationStatusText}',
+                    icon: Icons.notifications_outlined,
+                    iconColor: Colors.amber[700]!,
+                    title: 'Security Alerts',
+                    subtitle: 'Get notified of threats and network issues • ${settings.notificationStatusText}',
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _buildPermissionStatusIndicator(settings.notificationPermissionStatus),
                         const SizedBox(width: 8),
-Switch(
+                        Switch(
                           value: settings.notificationsEnabled,
                           onChanged: settings.isRequestingNotificationPermission 
                               ? null // Disable while requesting
@@ -211,51 +179,24 @@ Switch(
                   );
                 },
               ),
-              Consumer<SettingsProvider>(
-                builder: (context, settings, child) {
-                  return SettingsItem(
-                    icon: Icons.wifi_find,
-                    iconColor: AppColors.primary,
-                    title: 'Background Scanning',
-                    subtitle: 'Periodically scan for networks in the background',
-                    trailing: Switch(
-                      value: settings.backgroundScanEnabled,
-                      onChanged: (value) => settings.toggleBackgroundScan(),
-                      activeColor: AppColors.primary,
-                    ),
-                  );
-                },
-              ),
-              Consumer<SettingsProvider>(
-                builder: (context, settings, child) {
-                  return SettingsItem(
-                    icon: Icons.vpn_lock,
-                    iconColor: AppColors.success,
-                    title: 'VPN Suggestions',
-                    subtitle: 'Suggest using VPN on unsecured networks',
-                    trailing: Switch(
-                      value: settings.vpnSuggestionsEnabled,
-                      onChanged: (value) => settings.toggleVpnSuggestions(),
-                      activeColor: AppColors.primary,
-                    ),
-                  );
-                },
-              ),
             ],
           ),
           
           const SizedBox(height: 16),
           
-          // Data Management
+          
+          const SizedBox(height: 16),
+          
+          // Data & Privacy
           SettingsSection(
-            title: 'Data Management',
+            title: 'Data & Privacy',
             children: [
               Consumer<SettingsProvider>(
                 builder: (context, settings, child) {
                   return SettingsItem(
-                    icon: Icons.storage,
-                    iconColor: Colors.purple,
-                    title: 'Storage Used',
+                    icon: Icons.storage_outlined,
+                    iconColor: Colors.purple[600]!,
+                    title: 'Storage Usage',
                     trailing: Text(settings.storageUsedText, style: const TextStyle(color: AppColors.gray)),
                     child: Column(
                       children: [
@@ -265,8 +206,8 @@ Switch(
                           child: LinearProgressIndicator(
                             value: settings.storageUsagePercentage.clamp(0.0, 1.0),
                             backgroundColor: AppColors.lightGray,
-                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.purple),
-                            minHeight: 8,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.purple[600]!),
+                            minHeight: 6,
                           ),
                         ),
                       ],
@@ -277,10 +218,10 @@ Switch(
               Consumer<SettingsProvider>(
                 builder: (context, settings, child) {
                   return SettingsItem(
-                    icon: Icons.history,
-                    iconColor: AppColors.primary,
-                    title: 'Network History',
-                    subtitle: 'Set how long to keep your network history',
+                    icon: Icons.history_outlined,
+                    iconColor: Colors.indigo[600]!,
+                    title: 'Network History Retention',
+                    subtitle: 'Configure data retention period for scanned networks',
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -293,11 +234,13 @@ Switch(
                   );
                 },
               ),
+              const Divider(height: 24, thickness: 0.5, indent: 16, endIndent: 16),
               SettingsItem(
-                icon: Icons.delete_outline,
-                iconColor: AppColors.danger,
+                icon: Icons.delete_sweep_outlined,
+                iconColor: Colors.red[600]!,
                 title: 'Clear All Data',
-                textColor: AppColors.danger,
+                subtitle: 'Reset app to factory defaults',
+                textColor: Colors.red[700]!,
                 onTap: () => _showClearDataDialog(context),
               ),
             ],
@@ -305,55 +248,91 @@ Switch(
           
           const SizedBox(height: 16),
           
-          // About
+          // Support & Information
           SettingsSection(
-            title: 'About',
+            title: 'Support & Information',
             children: [
               SettingsItem(
-                icon: Icons.help_outline,
-                iconColor: AppColors.primary,
-                title: 'Help Center',
+                icon: Icons.help_center_outlined,
+                iconColor: Colors.blue[600]!,
+                title: 'Help & FAQ',
+                subtitle: 'Get help with using the app',
+                trailing: const Icon(Icons.chevron_right, color: AppColors.gray),
                 onTap: () => _showHelpCenter(context),
               ),
               SettingsItem(
                 icon: Icons.bug_report_outlined,
-                iconColor: AppColors.primary,
+                iconColor: Colors.orange[600]!,
                 title: 'Report a Problem',
+                subtitle: 'Send feedback to DICT-CALABARZON',
+                trailing: const Icon(Icons.chevron_right, color: AppColors.gray),
                 onTap: () => _showReportProblem(context),
               ),
-              SettingsItem(
-                icon: Icons.info_outline,
-                iconColor: AppColors.primary,
-                title: 'About DiSCon-X',
-                trailing: const Text('v1.2.5', style: TextStyle(color: AppColors.gray, fontSize: 12)),
-                onTap: () => _showAboutDialog(context),
-              ),
+              const Divider(height: 24, thickness: 0.5, indent: 16, endIndent: 16),
               SettingsItem(
                 icon: Icons.description_outlined,
-                iconColor: AppColors.primary,
+                iconColor: Colors.blue[600]!,
                 title: 'Privacy Policy',
+                subtitle: 'How we protect your data and privacy',
+                trailing: const Icon(Icons.chevron_right, color: AppColors.gray),
                 onTap: () => _showPrivacyPolicy(context),
               ),
               SettingsItem(
                 icon: Icons.article_outlined,
-                iconColor: AppColors.primary,
+                iconColor: Colors.blue[600]!,
                 title: 'Terms of Service',
+                subtitle: 'Usage terms and conditions',
+                trailing: const Icon(Icons.chevron_right, color: AppColors.gray),
                 onTap: () => _showTermsOfService(context),
+              ),
+              SettingsItem(
+                icon: Icons.info_outline,
+                iconColor: Colors.green[600]!,
+                title: 'About DiSCon-X',
+                subtitle: 'Version 1.2.5 • DICT-CALABARZON',
+                trailing: const Icon(Icons.chevron_right, color: AppColors.gray),
+                onTap: () => _showAboutDialog(context),
               ),
             ],
           ),
           
           // Footer
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 32),
-            child: Text(
-              'DisConX: DICT-CALABARZON Secure Connect\n'
-              'Department of Information and Communications Technology',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey[500],
-                fontSize: 12,
-              ),
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.security,
+                  size: 32,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'DisConX Security Suite',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'DICT-CALABARZON',
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Department of Information and Communications Technology',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 11,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -361,62 +340,6 @@ Switch(
     );
   }
 
-  void _showLanguageDialog(BuildContext context) {
-    final settingsProvider = context.read<SettingsProvider>();
-    final currentLanguage = settingsProvider.language;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select Language'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile(
-              title: const Text('English'),
-              value: 'en',
-              groupValue: currentLanguage,
-              onChanged: (value) {
-                if (value != null) {
-                  settingsProvider.setLanguage(value);
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Language updated to English'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
-                }
-              },
-            ),
-            RadioListTile(
-              title: const Text('Filipino'),
-              value: 'fil',
-              groupValue: currentLanguage,
-              onChanged: (value) {
-                if (value != null) {
-                  settingsProvider.setLanguage(value);
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Language updated to Filipino'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
-                }
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showHistoryDialog(BuildContext context) {
     final settingsProvider = context.read<SettingsProvider>();
@@ -931,4 +854,5 @@ Switch(
       ),
     );
   }
+
 }

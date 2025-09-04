@@ -118,7 +118,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> with TickerProvid
     return Card(
       margin: const EdgeInsets.all(16),
       elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -162,7 +162,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> with TickerProvid
             builder: (context, child) {
               return Transform.rotate(
                 angle: _scanAnimationController.value * 2 * 3.14159,
-                child: Icon(
+                child: const Icon(
                   Icons.security,
                   color: Colors.white,
                   size: 28,
@@ -201,13 +201,13 @@ class _SecurityDashboardState extends State<SecurityDashboard> with TickerProvid
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.red.withValues(alpha: 0.2 + 0.3 * _alertAnimationController.value),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: const BorderRadius.all(Radius.circular(12)),
                     border: Border.all(color: Colors.red),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.warning, color: Colors.red, size: 16),
+                      const Icon(Icons.warning, color: Colors.red, size: 16),
                       const SizedBox(width: 4),
                       Text(
                         '$highRiskCount',
@@ -225,7 +225,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> with TickerProvid
           const SizedBox(width: 8),
           IconButton(
             onPressed: _isLoading ? null : _refreshSecurityData,
-            icon: Icon(
+            icon: const Icon(
               Icons.refresh,
               color: Colors.white,
             ),
@@ -283,7 +283,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> with TickerProvid
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
@@ -320,7 +320,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> with TickerProvid
             padding: const EdgeInsets.symmetric(vertical: 8),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: const BorderRadius.all(Radius.circular(4)),
             ),
             child: Column(
               children: [
@@ -355,13 +355,13 @@ class _SecurityDashboardState extends State<SecurityDashboard> with TickerProvid
       ..sort((a, b) => b.priority.compareTo(a.priority));
 
     if (highPriorityThreats.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(16),
+      return const Padding(
+        padding: EdgeInsets.all(16),
         child: Row(
           children: [
             Icon(Icons.check_circle, color: Colors.green, size: 20),
-            const SizedBox(width: 8),
-            const Text('No active threats detected'),
+            SizedBox(width: 8),
+            Text('No active threats detected'),
           ],
         ),
       );
@@ -406,7 +406,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> with TickerProvid
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: _getThreatSeverityColor(threat.severity).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: const BorderRadius.all(Radius.circular(8)),
           border: Border.all(
             color: _getThreatSeverityColor(threat.severity).withValues(alpha: 0.3),
           ),
@@ -450,7 +450,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> with TickerProvid
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: _getThreatSeverityColor(threat.severity),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: const BorderRadius.all(Radius.circular(4)),
               ),
               child: Text(
                 '${(threat.confidenceScore * 100).toInt()}%',
@@ -501,7 +501,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> with TickerProvid
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: const BorderRadius.all(Radius.circular(8)),
           border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Column(
@@ -554,7 +554,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> with TickerProvid
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: _getScoreColor(avgScore).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: const BorderRadius.all(Radius.circular(8)),
             ),
             child: Icon(
               _getScoreIcon(avgScore),

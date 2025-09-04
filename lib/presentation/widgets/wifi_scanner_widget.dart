@@ -163,7 +163,7 @@ class _WiFiScannerWidgetState extends State<WiFiScannerWidget>
     return Card(
       margin: const EdgeInsets.all(8),
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -197,7 +197,7 @@ class _WiFiScannerWidgetState extends State<WiFiScannerWidget>
             builder: (context, child) {
               return Transform.rotate(
                 angle: _scanAnimationController.value * 2 * 3.14159,
-                child: Icon(
+                child: const Icon(
                   Icons.wifi_find,
                   color: Colors.white,
                   size: 24,
@@ -276,12 +276,12 @@ class _WiFiScannerWidgetState extends State<WiFiScannerWidget>
       child: Center(
         child: Column(
           children: [
-            SizedBox(
+            const SizedBox(
               width: 40,
               height: 40,
               child: CircularProgressIndicator(
                 strokeWidth: 3,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1976D2)),
               ),
             ),
             const SizedBox(height: 16),
@@ -421,7 +421,7 @@ class _WiFiScannerWidgetState extends State<WiFiScannerWidget>
             margin: const EdgeInsets.only(right: 1),
             decoration: BoxDecoration(
               color: index < bars ? color : Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(1),
+              borderRadius: const BorderRadius.all(Radius.circular(1)),
             ),
           );
         }),
@@ -451,7 +451,7 @@ class _WiFiScannerWidgetState extends State<WiFiScannerWidget>
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: const BorderRadius.all(Radius.circular(4)),
         border: Border.all(color: color.withValues(alpha: 0.5), width: 0.5),
       ),
       child: Text(
@@ -470,7 +470,7 @@ class _WiFiScannerWidgetState extends State<WiFiScannerWidget>
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: _getSecurityBadgeColor(assessment.threatLevel).withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: const BorderRadius.all(Radius.circular(4)),
         border: Border.all(
           color: _getSecurityBadgeColor(assessment.threatLevel).withValues(alpha: 0.5),
           width: 0.5,
@@ -489,12 +489,12 @@ class _WiFiScannerWidgetState extends State<WiFiScannerWidget>
 
   Widget _buildThreatIndicator(SecurityAssessment assessment) {
     if (assessment.detectedThreats.isEmpty) {
-      return Row(
+      return const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.check_circle, color: Colors.green, size: 12),
-          const SizedBox(width: 4),
-          const Text(
+          SizedBox(width: 4),
+          Text(
             'Safe',
             style: TextStyle(
               color: Colors.green,
@@ -535,7 +535,7 @@ class _WiFiScannerWidgetState extends State<WiFiScannerWidget>
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: _getThreatSeverityColor(mostCritical.severity).withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: const BorderRadius.all(Radius.circular(4)),
       ),
       child: Row(
         children: [

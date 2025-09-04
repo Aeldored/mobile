@@ -19,7 +19,7 @@ class NetworkMapWidget extends StatefulWidget {
 class _NetworkMapWidgetState extends State<NetworkMapWidget> {
   final MapController _mapController = MapController();
   final LocationService _locationService = LocationService();
-  LatLng _currentLocation = LatLng(
+  LatLng _currentLocation = const LatLng(
     AppConstants.defaultLatitude,
     AppConstants.defaultLongitude,
   );

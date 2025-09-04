@@ -19,6 +19,10 @@ class WhitelistRepository {
 
   // Get whitelist with caching
   Future<WhitelistData?> getWhitelist({bool forceRefresh = false}) async {
+    developer.log('🔄 WHITELIST REPOSITORY DEBUG: getWhitelist called');
+    developer.log('   - forceRefresh: $forceRefresh');
+    developer.log('   - _isCacheValid(): ${!forceRefresh ? _isCacheValid() : 'N/A (force refresh)'}');
+    
     // Check cache validity
     if (!forceRefresh && _isCacheValid()) {
       final cached = _getCachedWhitelist();
@@ -30,13 +34,19 @@ class WhitelistRepository {
 
     // Fetch from Firebase
     developer.log('Fetching whitelist from Firebase');
-    final whitelist = await _firebaseService.fetchCurrentWhitelist();
-    
-    if (whitelist != null) {
-      await _cacheWhitelist(whitelist);
+    try {
+      final whitelist = await _firebaseService.fetchCurrentWhitelist();
+      developer.log('🔄 WHITELIST REPOSITORY: Firebase service returned ${whitelist != null ? "${whitelist.accessPoints.length} access points" : "null"}');
+      
+      if (whitelist != null) {
+        await _cacheWhitelist(whitelist);
+      }
+      
+      return whitelist;
+    } catch (e) {
+      developer.log('❌ WHITELIST REPOSITORY: Error calling Firebase service: $e');
+      return null;
     }
-    
-    return whitelist;
   }
 
   // Stream for real-time updates
@@ -71,6 +81,7 @@ class WhitelistRepository {
                 signalStrength: Map<String, dynamic>.from(ap['signalStrength']),
                 type: ap['type'],
                 status: ap['status'],
+                isVerified: ap['isVerified'] ?? true,
               ))
           .toList();
       

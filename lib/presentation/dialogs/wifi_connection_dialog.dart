@@ -229,21 +229,21 @@ class _WiFiConnectionDialogState extends State<WiFiConnectionDialog> {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
         ),
-        child: Column(
+        child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(Icons.settings, color: AppColors.primary, size: 16),
-                const SizedBox(width: 8),
-                const Text(
+                SizedBox(width: 8),
+                Text(
                   'System Settings Connection',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            const Text(
+            SizedBox(height: 4),
+            Text(
               'For security, Android requires connections through system settings. '
               'You\'ll be guided to the Wi-Fi settings to connect manually.',
               style: TextStyle(fontSize: 11),

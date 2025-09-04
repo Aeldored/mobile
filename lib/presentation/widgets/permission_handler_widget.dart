@@ -158,7 +158,7 @@ class _PermissionHandlerWidgetState extends State<PermissionHandlerWidget> with 
                 color: AppColors.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.security,
                 size: 48,
                 color: AppColors.primary,
@@ -201,7 +201,7 @@ class _PermissionHandlerWidgetState extends State<PermissionHandlerWidget> with 
                 color: Colors.orange.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.location_on,
                 size: 48,
                 color: Colors.orange,
@@ -247,7 +247,7 @@ class _PermissionHandlerWidgetState extends State<PermissionHandlerWidget> with 
                   color: Colors.orange.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.location_off,
                   size: 48,
                   color: Colors.orange,
@@ -282,7 +282,7 @@ class _PermissionHandlerWidgetState extends State<PermissionHandlerWidget> with 
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.shield, color: Colors.blue, size: 20),
+                    const Icon(Icons.shield, color: Colors.blue, size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -356,7 +356,7 @@ class _PermissionHandlerWidgetState extends State<PermissionHandlerWidget> with 
                   color: Colors.red.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.settings,
                   size: 48,
                   color: Colors.red,
@@ -469,7 +469,7 @@ class _PermissionHandlerWidgetState extends State<PermissionHandlerWidget> with 
                   color: Colors.red.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.error,
                   size: 48,
                   color: Colors.red,

@@ -1,7 +1,7 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // id("com.google.gms.google-services")  // Commented out until Firebase is configured
+    id("com.google.gms.google-services")  // Commented out until Firebase is configured
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -44,8 +44,8 @@ flutter {
 
 dependencies {
     // Firebase dependencies commented out until configuration is complete
-    // implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
-    // implementation("com.google.firebase:firebase-analytics-ktx")
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-analytics-ktx")
     implementation("androidx.multidex:multidex:2.0.1")
     
     // Kotlin coroutines for WiFi controller

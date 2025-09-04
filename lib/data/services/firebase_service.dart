@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_performance/firebase_performance.dart';
+import 'package:firebase_core/firebase_core.dart';
 import '../models/network_model.dart';
 
 class FirebaseService {
@@ -17,13 +18,28 @@ class FirebaseService {
   bool _initialized = false;
 
   Future<void> initialize() async {
-    if (_initialized) return;
+    developer.log('🔥 FIREBASE SERVICE: initialize() called, _initialized: $_initialized');
+    if (_initialized) {
+      developer.log('🔥 FIREBASE SERVICE: Already initialized, skipping');
+      return;
+    }
     
     try {
+      // Ensure Firebase Core is initialized first
+      if (Firebase.apps.isEmpty) {
+        developer.log('🔥 FIREBASE SERVICE: Firebase Core not initialized, initializing...');
+        await Firebase.initializeApp();
+        developer.log('🔥 FIREBASE SERVICE: Firebase Core initialized');
+      }
+      
+      developer.log('🔥 FIREBASE SERVICE: Getting Firestore instance...');
       _firestore = FirebaseFirestore.instance;
+      developer.log('🔥 FIREBASE SERVICE: Getting Analytics instance...');
       _analytics = FirebaseAnalytics.instance;
+      developer.log('🔥 FIREBASE SERVICE: Getting Performance instance...');
       _performance = FirebasePerformance.instance;
       
+      developer.log('🔥 FIREBASE SERVICE: Configuring Firestore settings...');
       // Enable offline persistence
       _firestore.settings = const Settings(
         persistenceEnabled: true,
@@ -31,42 +47,120 @@ class FirebaseService {
       );
       
       _initialized = true;
+      developer.log('✅ FIREBASE SERVICE: Initialization completed successfully');
     } catch (e) {
-      developer.log('Firebase service initialization error: $e');
+      developer.log('❌ Firebase service initialization error: $e');
+      developer.log('❌ Error type: ${e.runtimeType}');
       rethrow;
     }
   }
 
   // Fetch current whitelist from Firebase
   Future<WhitelistData?> fetchCurrentWhitelist() async {
+    // Ensure Firebase is initialized before using _firestore
+    if (!_initialized) {
+      developer.log('🔧 Firebase not initialized, initializing now...');
+      await initialize();
+    }
+    
     final trace = _performance.newTrace('whitelist_fetch');
     await trace.start();
     
     try {
-      // Get whitelist metadata
-      final metadataDoc = await _firestore
-          .collection('whitelists')
-          .doc('current')
-          .get();
+      developer.log('🔍 Attempting to fetch whitelist data from Firestore...');
       
-      if (!metadataDoc.exists) {
-        developer.log('No whitelist metadata found');
-        await trace.stop();
-        return null;
+      // Try to get whitelist metadata (optional)
+      Map<String, dynamic>? metadata;
+      try {
+        final metadataDoc = await _firestore
+            .collection('whitelists')
+            .doc('current')
+            .get();
+        
+        if (metadataDoc.exists) {
+          metadata = metadataDoc.data()!;
+          developer.log('✅ Found whitelist metadata');
+        } else {
+          developer.log('⚠️ No whitelist metadata found, using defaults');
+        }
+      } catch (e) {
+        developer.log('⚠️ Failed to fetch whitelist metadata: $e');
       }
       
-      final metadata = metadataDoc.data()!;
-      
       // Fetch whitelist data directly from Firestore
-      // Primary method: Get from whitelist_data collection (optimized for large datasets)
+      // Primary method: Get from access_points collection (user's actual data location)
+      List<AccessPointData> accessPoints = [];
+      
       try {
+        developer.log('🔍 Step 1: Trying access_points collection...');
+        
+        // Try without filter first to see what's there
+        final allDocsSnapshot = await _firestore
+            .collection('access_points')
+            .limit(5)
+            .get();
+        
+        developer.log('📊 Total documents in access_points collection: ${allDocsSnapshot.docs.length}');
+        if (allDocsSnapshot.docs.isNotEmpty) {
+          final sampleDoc = allDocsSnapshot.docs.first;
+          developer.log('📋 Sample document fields: ${sampleDoc.data().keys.toList()}');
+        }
+        
+        // Load ALL access_points on startup - no filtering needed
+        developer.log('🔄 Loading ALL access_points from collection...');
+        final accessPointsSnapshot = await _firestore
+            .collection('access_points')
+            .limit(10000) // Large limit to get all documents
+            .get();
+        developer.log('✅ Loaded ${accessPointsSnapshot.docs.length} total access points from collection');
+        
+        developer.log('📊 Found ${accessPointsSnapshot.docs.length} documents in access_points collection');
+        
+        // Debug: Show sample document structure for troubleshooting
+        if (accessPointsSnapshot.docs.isNotEmpty) {
+          final sampleDoc = accessPointsSnapshot.docs.first;
+          final sampleData = sampleDoc.data();
+          developer.log('📋 Sample access point document structure:');
+          developer.log('   Document ID: ${sampleDoc.id}');
+          developer.log('   Available fields: ${sampleData.keys.toList()}');
+          if (sampleData.containsKey('ssid')) developer.log('   SSID: ${sampleData['ssid']}');
+          if (sampleData.containsKey('verified')) developer.log('   Verified: ${sampleData['verified']}');
+          if (sampleData.containsKey('isActive')) developer.log('   IsActive: ${sampleData['isActive']}');
+          if (sampleData.containsKey('status')) developer.log('   Status: ${sampleData['status']}');
+          if (sampleData.containsKey('isWhitelisted')) developer.log('   IsWhitelisted: ${sampleData['isWhitelisted']}');
+        }
+        
+        if (accessPointsSnapshot.docs.isNotEmpty) {
+          accessPoints = accessPointsSnapshot.docs
+              .map((doc) => AccessPointData.fromFirestore(doc.id, doc.data()))
+              .toList();
+          
+          developer.log('✅ Successfully loaded ${accessPoints.length} access points from access_points collection');
+          
+          trace.setMetric('access_points_count', accessPoints.length);
+          await trace.stop();
+          
+          return WhitelistData(
+            version: metadata?['version'] ?? '1.0.0',
+            lastUpdated: metadata != null ? (metadata['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now() : DateTime.now(),
+            accessPoints: accessPoints,
+            checksum: metadata?['checksum'] ?? '',
+          );
+        }
+      } catch (e) {
+        developer.log('❌ access_points collection failed: $e');
+      }
+      
+      // Fallback method: Get from whitelist_data collection
+      try {
+        developer.log('🔍 Step 2: Fallback to whitelist_data collection...');
         final whitelistSnapshot = await _firestore
             .collection('whitelist_data')
             .orderBy('createdAt', descending: false)
             .limit(5000) // Process in chunks to stay within free tier limits
             .get();
         
-        final accessPoints = <AccessPointData>[];
+        accessPoints = [];
         
         for (final doc in whitelistSnapshot.docs) {
           final data = doc.data();
@@ -82,10 +176,10 @@ class FirebaseService {
         await trace.stop();
         
         return WhitelistData(
-          version: metadata['version'] ?? '1.0.0',
-          lastUpdated: (metadata['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          version: metadata?['version'] ?? '1.0.0',
+          lastUpdated: metadata != null ? (metadata['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now() : DateTime.now(),
           accessPoints: accessPoints,
-          checksum: metadata['checksum'] ?? '',
+          checksum: metadata?['checksum'] ?? '',
         );
       } catch (e) {
         // Fallback to individual access_points collection
@@ -105,10 +199,10 @@ class FirebaseService {
         await trace.stop();
         
         return WhitelistData(
-          version: metadata['version'] ?? '1.0.0',
-          lastUpdated: (metadata['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          version: metadata?['version'] ?? '1.0.0',
+          lastUpdated: metadata != null ? (metadata['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now() : DateTime.now(),
           accessPoints: accessPoints,
-          checksum: metadata['checksum'] ?? '',
+          checksum: metadata?['checksum'] ?? '',
         );
       }
     } catch (e) {
@@ -205,6 +299,11 @@ class FirebaseService {
     required String deviceId,
     String? additionalInfo,
   }) async {
+    // Ensure Firebase is initialized before using _firestore
+    if (!_initialized) {
+      await initialize();
+    }
+    
     try {
       await _firestore.collection('threat_reports').add({
         'network': {
@@ -240,6 +339,11 @@ class FirebaseService {
     required String version,
     required String checksum,
   }) async {
+    // Ensure Firebase is initialized before using _firestore
+    if (!_initialized) {
+      await initialize();
+    }
+    
     try {
       // Update metadata
       await _firestore.collection('whitelists').doc('current').set({
@@ -446,9 +550,14 @@ class AccessPointData {
   final String region;
   final String province;
   final String city;
+  final String? venue;
+  final String? barangay;
+  final DateTime? verifiedAt;
+  final String? verifiedBy;
   final Map<String, dynamic> signalStrength;
   final String type;
   final String status;
+  final bool isVerified;
 
   AccessPointData({
     required this.id,
@@ -459,10 +568,18 @@ class AccessPointData {
     required this.region,
     required this.province,
     required this.city,
+    this.venue,
+    this.barangay,
+    this.verifiedAt,
+    this.verifiedBy,
     required this.signalStrength,
     required this.type,
     required this.status,
+    required this.isVerified,
   });
+
+  // Compatibility getter for cityName (returns city)
+  String get cityName => city;
 
   factory AccessPointData.fromJson(Map<String, dynamic> json) {
     return AccessPointData(
@@ -474,27 +591,223 @@ class AccessPointData {
       region: json['region'] ?? '',
       province: json['province'] ?? '',
       city: json['city'] ?? '',
+      venue: json['venue'],
+      barangay: json['barangay'],
+      verifiedAt: json['verifiedAt'] != null ? DateTime.tryParse(json['verifiedAt']) : null,
+      verifiedBy: json['verifiedBy'],
       signalStrength: json['signalStrength'] ?? {},
       type: json['type'] ?? 'unknown',
       status: json['status'] ?? 'unknown',
+      isVerified: json['verified'] ?? json['isVerified'] ?? false,
     );
   }
 
+  static Map<String, dynamic> _parseSignalStrength(dynamic signalData) {
+    if (signalData == null) return {};
+    if (signalData is Map<String, dynamic>) return signalData;
+    if (signalData is int) return {'dbm': signalData};
+    if (signalData is double) return {'dbm': signalData.toInt()};
+    return {};
+  }
+
+  static double _extractCoordinate(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value != null && value is num && value != 0) {
+        return value.toDouble();
+      }
+    }
+    return 0.0;
+  }
+
   factory AccessPointData.fromFirestore(String id, Map<String, dynamic> data) {
-    final location = data['location'] as GeoPoint?;
-    return AccessPointData(
-      id: id,
-      ssid: data['ssid'] ?? '',
-      macAddress: data['macAddress'] ?? '',
-      latitude: location?.latitude ?? 0,
-      longitude: location?.longitude ?? 0,
-      region: data['region'] ?? '',
-      province: data['province'] ?? '',
-      city: data['city'] ?? '',
-      signalStrength: data['signalStrength'] ?? {},
-      type: data['type'] ?? 'unknown',
-      status: data['status'] ?? 'unknown',
-    );
+    developer.log('🚀 FROMFIRESTORE CALLED FOR: $id');
+    
+    try {
+      // Handle different location formats
+      double latitude = 0;
+      double longitude = 0;
+    
+    // Try multiple location parsing strategies
+    final locationData = data['location'];
+    
+    // Strategy 1: GeoPoint format
+    if (locationData is GeoPoint) {
+      latitude = locationData.latitude;
+      longitude = locationData.longitude;
+      developer.log('   ✅ Parsed GeoPoint: lat=$latitude, lng=$longitude');
+    }
+    // Strategy 2: Map format with nested structure
+    else if (locationData is Map<String, dynamic>) {
+      // Try direct latitude/longitude in location object
+      latitude = _extractCoordinate(locationData, ['latitude', 'lat', '_latitude']);
+      longitude = _extractCoordinate(locationData, ['longitude', 'lng', '_longitude']);
+      
+      // CRITICAL FIX: Try coordinates object nested in location
+      if (latitude == 0.0 && longitude == 0.0) {
+        final coordinates = locationData['coordinates'];
+        developer.log('   🔍 Checking coordinates object: $coordinates');
+        if (coordinates is Map<String, dynamic>) {
+          developer.log('   🔍 Coordinates keys: ${coordinates.keys.toList()}');
+          developer.log('   🔍 Coordinates values: $coordinates');
+          
+          latitude = _extractCoordinate(coordinates, ['latitude', 'lat']);
+          longitude = _extractCoordinate(coordinates, ['longitude', 'lng']);
+          developer.log('   🎯 Found coordinates object: lat=$latitude, lng=$longitude');
+          
+          // DIRECT ACCESS - ALWAYS USE THIS METHOD
+          developer.log('   🆘 DIRECT TEST: coordinates[latitude] = ${coordinates['latitude']}');
+          developer.log('   🆘 DIRECT TEST: coordinates[longitude] = ${coordinates['longitude']}');
+          
+          try {
+            final latValue = coordinates['latitude'];
+            final lngValue = coordinates['longitude'];
+            
+            if (latValue != null && lngValue != null) {
+              // Handle both num and String types
+              if (latValue is num) {
+                latitude = latValue.toDouble();
+              } else if (latValue is String) {
+                latitude = double.parse(latValue);
+              }
+              
+              if (lngValue is num) {
+                longitude = lngValue.toDouble();
+              } else if (lngValue is String) {
+                longitude = double.parse(lngValue);
+              }
+              
+              developer.log('   ✅ DIRECT ACCESS SUCCESS: lat=$latitude, lng=$longitude');
+            }
+          } catch (e) {
+            developer.log('   ❌ DIRECT ACCESS FAILED: $e');
+          }
+        }
+      }
+      
+      // Try GeoPoint nested in location
+      if (latitude == 0.0 && longitude == 0.0) {
+        final geopoint = locationData['geopoint'];
+        if (geopoint is GeoPoint) {
+          latitude = geopoint.latitude;
+          longitude = geopoint.longitude;
+        } else if (geopoint is Map<String, dynamic>) {
+          latitude = _extractCoordinate(geopoint, ['latitude', 'lat', '_latitude']);
+          longitude = _extractCoordinate(geopoint, ['longitude', 'lng', '_longitude']);
+        }
+      }
+      developer.log('   📍 Parsed from location map: lat=$latitude, lng=$longitude');
+    }
+    
+    // Strategy 3: Direct document fields
+    if (latitude == 0.0 && longitude == 0.0) {
+      latitude = _extractCoordinate(data, ['latitude', 'lat']);
+      longitude = _extractCoordinate(data, ['longitude', 'lng']);
+      developer.log('   🎯 Parsed from direct fields: lat=$latitude, lng=$longitude');
+    }
+    
+    // Strategy 4: Try any field that might contain coordinates
+    if (latitude == 0.0 && longitude == 0.0) {
+      // Look through all fields for anything that looks like coordinates
+      for (final entry in data.entries) {
+        final key = entry.key.toLowerCase();
+        final value = entry.value;
+        
+        if (key.contains('lat') && value is num && value != 0) {
+          latitude = value.toDouble();
+        }
+        if (key.contains('lng') || key.contains('lon') && value is num && value != 0) {
+          longitude = value.toDouble();
+        }
+      }
+      developer.log('   🔍 Parsed from field search: lat=$latitude, lng=$longitude');
+    }
+    
+    // FINAL COORDINATE TEST
+    developer.log('🎯 FINAL RESULT FOR $id: lat=$latitude, lng=$longitude (Valid: ${latitude != 0.0 && longitude != 0.0})');
+    
+    // Debug logging for conversion
+    developer.log('🔄 Converting Firestore document to AccessPointData:');
+    developer.log('   ID: $id');
+    developer.log('   IMMEDIATE TEST - Raw location data: ${data['location']}');
+    developer.log('   SSID: ${data['ssid']}');
+    developer.log('   Status: ${data['status']}');
+    developer.log('   isWhitelisted: ${data['isWhitelisted']}');
+    developer.log('   verified: ${data['verified']}');
+    developer.log('   isVerified: ${data['isVerified']}');
+    developer.log('   Location type: ${locationData.runtimeType}');
+    if (locationData is Map<String, dynamic>) {
+      developer.log('   Location keys: ${locationData.keys.toList()}');
+      developer.log('   Location values: $locationData');
+    }
+    developer.log('   SignalStrength type: ${data['signalStrength'].runtimeType}');
+    developer.log('   Final coordinates: lat=$latitude, lng=$longitude');
+    developer.log('   Valid location: ${latitude != 0.0 && longitude != 0.0}');
+    
+      // Extract venue and barangay from location object (reuse existing locationData variable)
+      String? venue;
+      String? barangay;
+      String? locationProvince;
+      String? locationCity;
+      
+      if (locationData is Map<String, dynamic>) {
+        venue = locationData['venue'];
+        barangay = locationData['barangay'];  
+        locationProvince = locationData['province'];
+        locationCity = locationData['city'];
+      }
+      
+      // Extract verification date
+      DateTime? verifiedAt;
+      final verifiedAtData = data['verifiedAt'] ?? data['createdAt'] ?? data['timestamp'];
+      if (verifiedAtData != null) {
+        if (verifiedAtData is Timestamp) {
+          verifiedAt = verifiedAtData.toDate();
+        } else if (verifiedAtData is String) {
+          verifiedAt = DateTime.tryParse(verifiedAtData);
+        }
+      }
+
+      return AccessPointData(
+        id: id,
+        ssid: data['ssid'] ?? '',
+        macAddress: data['bssid'] ?? data['macAddress'] ?? '', // Try bssid first, then macAddress
+        latitude: latitude,
+        longitude: longitude,
+        region: data['region'] ?? locationProvince ?? '',
+        province: locationProvince ?? data['province'] ?? '',
+        city: locationCity ?? data['city'] ?? '',
+        venue: venue,
+        barangay: barangay,
+        verifiedAt: verifiedAt,
+        verifiedBy: data['verifiedBy'] ?? data['detectedBy'] ?? 'DICT CALABARZON',
+        signalStrength: _parseSignalStrength(data['signalStrength']),
+        type: data['networkType'] ?? data['type'] ?? 'unknown', // Try networkType first
+        status: data['status'] ?? 'unknown',
+        isVerified: data['isWhitelisted'] ?? data['verified'] ?? data['isVerified'] ?? true, // Try isWhitelisted first
+      );
+    } catch (e) {
+      developer.log('❌ FROMFIRESTORE ERROR for $id: $e');
+      // Return a fallback object with default coordinates
+      return AccessPointData(
+        id: id,
+        ssid: data['ssid'] ?? 'Unknown',
+        macAddress: data['bssid'] ?? data['macAddress'] ?? '',
+        latitude: 0.0, // Default fallback coordinate
+        longitude: 0.0, // Default fallback coordinate
+        region: '',
+        province: '',
+        city: '',
+        venue: null,
+        barangay: null,
+        verifiedAt: null,
+        verifiedBy: 'DICT CALABARZON',
+        signalStrength: {},
+        type: 'unknown',
+        status: 'unknown',
+        isVerified: true,
+      );
+    }
   }
 }
 

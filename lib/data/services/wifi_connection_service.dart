@@ -7,6 +7,7 @@ import '../models/wifi_connection_result.dart';
 import 'saved_networks_service.dart';
 import 'native_wifi_controller.dart' show NativeWiFiController, WiFiConnectionInfo;
 import 'connection_validation_service.dart';
+import 'network_activity_tracker.dart';
 
 class WiFiConnectionService {
   static final WiFiConnectionService _instance = WiFiConnectionService._internal();
@@ -16,6 +17,7 @@ class WiFiConnectionService {
   final SavedNetworksService _savedNetworksService = SavedNetworksService();
   final NativeWiFiController _nativeController = NativeWiFiController();
   final ConnectionValidationService _validationService = ConnectionValidationService();
+  final NetworkActivityTracker _activityTracker = NetworkActivityTracker();
   
   bool _initialized = false;
 
@@ -27,6 +29,9 @@ class WiFiConnectionService {
       // Initialize native controller
       await _nativeController.initialize();
       
+      // Initialize activity tracker
+      await _activityTracker.initialize();
+      
       _initialized = true;
       
       // Android specific initialization logging
@@ -34,6 +39,7 @@ class WiFiConnectionService {
       developer.log('🎯 Platform: ${Platform.operatingSystemVersion}');
       developer.log('🔧 Native controller initialized for Android 13+ compatibility');
       developer.log('🚀 Native controller initialized for system settings integration');
+      developer.log('📊 Activity tracker initialized for network monitoring');
     } catch (e) {
       developer.log('❌ Failed to initialize WiFiConnectionService: $e');
     }
@@ -156,6 +162,14 @@ class WiFiConnectionService {
             await _savedNetworksService.saveNetworkCredentials(network.name, finalPassword);
           }
           
+          // 📊 ACTIVITY TRACKING: Start tracking this connection
+          try {
+            await _activityTracker.trackConnection(network);
+            developer.log('📊 Activity tracking started for ${network.name}');
+          } catch (e) {
+            developer.log('⚠️ Activity tracking failed (connection still successful): $e');
+          }
+          
           developer.log('✅ DIRECT connection validation passed for ${network.name}');
           developer.log('✅ NO SYSTEM SETTINGS REDIRECTION - Connection handled in-app');
           developer.log('Validation details: ${validationResult.validationSteps.map((s) => s.toString()).join(", ")}');
@@ -226,15 +240,15 @@ class WiFiConnectionService {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
             Icon(
               Icons.warning,
               color: Colors.orange,
               size: 24,
             ),
-            const SizedBox(width: 8),
-            const Text('Security Warning'),
+            SizedBox(width: 8),
+            Text('Security Warning'),
           ],
         ),
         content: Column(
@@ -324,6 +338,14 @@ class WiFiConnectionService {
     try {
       await initialize();
       
+      // 📊 ACTIVITY TRACKING: Track disconnection before actually disconnecting
+      try {
+        await _activityTracker.trackDisconnection();
+        developer.log('📊 Activity tracking: Disconnection recorded');
+      } catch (e) {
+        developer.log('⚠️ Activity tracking disconnect failed (proceeding with disconnect): $e');
+      }
+      
       developer.log('🔌 Using native controller for disconnect');
       
       final result = await _nativeController.disconnectFromCurrent();
@@ -380,7 +402,7 @@ class WiFiConnectionService {
 
   /// Auto-connect to saved networks during scan
   Future<List<NetworkModel>> checkForAutoConnect(List<NetworkModel> networks) async {
-    final List<NetworkModel> updatedNetworks = [];
+    final List<NetworkModel> updatedNetworks = <NetworkModel>[];
     
     for (final network in networks) {
       final isSaved = await isNetworkSaved(network.name);

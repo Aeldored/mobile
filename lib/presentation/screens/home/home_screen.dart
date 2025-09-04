@@ -25,8 +25,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final AccessPointService _accessPointService = AccessPointService();
-  final WiFiConnectionManager _connectionManager = WiFiConnectionManager();
+  late final AccessPointService _accessPointService;
+  late final WiFiConnectionManager _connectionManager;
   
   @override
   bool get wantKeepAlive => true;
@@ -34,6 +34,11 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   @override
   void initState() {
     super.initState();
+    
+    // Initialize services safely after UI is ready
+    _accessPointService = AccessPointService();
+    _connectionManager = WiFiConnectionManager();
+    
     _accessPointService.initialize();
     // Load networks after the first frame to avoid setState during build
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -83,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 color: AppColors.primary,
               ),
             ),
-            SizedBox(height: isSmallScreen ? 12 : 16),
+            const SizedBox(height: 16),
             Text(
               'No Networks Discovered',
               style: TextStyle(
@@ -93,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               ),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: isSmallScreen ? 6 : 8),
+            const SizedBox(height: 8),
             Text(
               'Start a scan to discover nearby Wi-Fi networks and check for potential security threats.',
               textAlign: TextAlign.center,
@@ -103,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 height: 1.3,
               ),
             ),
-            SizedBox(height: isSmallScreen ? 16 : 20),
+            const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: _navigateToScan,
               icon: const Icon(Icons.search, size: 18),
@@ -121,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 ),
               ),
             ),
-            SizedBox(height: isSmallScreen ? 8 : 12),
+            const SizedBox(height: 12),
             TextButton(
               onPressed: () => _loadNetworks(),
               child: Text(
@@ -162,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 color: Colors.orange,
               ),
             ),
-            SizedBox(height: isSmallScreen ? 12 : 16),
+            const SizedBox(height: 16),
             Text(
               'No Networks Found',
               style: TextStyle(
@@ -172,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               ),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: isSmallScreen ? 6 : 8),
+            const SizedBox(height: 8),
             Text(
               'The scan completed but no Wi-Fi networks were detected in your area. This could be due to distance from access points or network availability.',
               textAlign: TextAlign.center,
@@ -182,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 height: 1.3,
               ),
             ),
-            SizedBox(height: isSmallScreen ? 16 : 20),
+            const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: _navigateToScan,
               icon: const Icon(Icons.refresh, size: 18),
@@ -216,10 +221,10 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     
     // Show a brief message indicating scan has started
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Network scan started'),
+      const SnackBar(
+        content: Text('Network scan started'),
         backgroundColor: AppColors.primary,
-        duration: const Duration(seconds: 2),
+        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -241,8 +246,8 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         context: context,
         barrierDismissible: true,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(16)),
           ),
           title: Row(
             children: [
@@ -271,7 +276,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.red.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: const BorderRadius.all(Radius.circular(8)),
                     border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                   ),
                   child: Column(
@@ -307,24 +312,24 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: const BorderRadius.all(Radius.circular(8)),
                     border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                   ),
-                  child: Column(
+                  child: const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
                           Icon(Icons.settings, color: AppColors.primary, size: 16),
-                          const SizedBox(width: 8),
-                          const Text(
+                          SizedBox(width: 8),
+                          Text(
                             'System Settings Disconnection',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      const Text(
+                      SizedBox(height: 4),
+                      Text(
                         'For security, Android may require disconnection through system settings. '
                         'If automatic disconnect fails, you\'ll be guided to Wi-Fi settings.',
                         style: TextStyle(fontSize: 11),
@@ -339,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.orange.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: const BorderRadius.all(Radius.circular(8)),
                     border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
                   ),
                   child: Row(
@@ -384,10 +389,10 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       // Show disconnecting progress
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Row(
               children: [
-                const SizedBox(
+                SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
@@ -395,14 +400,14 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 ),
-                const SizedBox(width: 12),
-                const Expanded(
+                SizedBox(width: 12),
+                Expanded(
                   child: Text('Disconnecting from Wi-Fi...'),
                 ),
               ],
             ),
             backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 3),
+            duration: Duration(seconds: 3),
           ),
         );
       }
@@ -417,7 +422,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         if (disconnectResult) {
           // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Row(
                 children: [
                   Icon(
@@ -425,14 +430,14 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                     color: Colors.white,
                     size: 16,
                   ),
-                  const SizedBox(width: 8),
-                  const Expanded(
+                  SizedBox(width: 8),
+                  Expanded(
                     child: Text('Successfully disconnected from Wi-Fi'),
                   ),
                 ],
               ),
               backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
+              duration: Duration(seconds: 3),
             ),
           );
           
@@ -491,18 +496,18 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.settings, color: Colors.white, size: 16),
-                const SizedBox(width: 8),
-                const Expanded(
+                Icon(Icons.settings, color: Colors.white, size: 16),
+                SizedBox(width: 8),
+                Expanded(
                   child: Text('Wi-Fi settings opened - find your network to disconnect'),
                 ),
               ],
             ),
             backgroundColor: AppColors.primary,
-            duration: const Duration(seconds: 3),
+            duration: Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -607,24 +612,24 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                       }
                       return TextField(
                         controller: _searchController,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           hintText: 'Search for Wi-Fi networks...',
-                          prefixIcon: const Icon(Icons.search, color: AppColors.gray),
+                          prefixIcon: Icon(Icons.search, color: AppColors.gray),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: AppColors.lightGray),
+                            borderRadius: BorderRadius.all(Radius.circular(8)),
+                            borderSide: BorderSide(color: AppColors.lightGray),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: AppColors.lightGray),
+                            borderRadius: BorderRadius.all(Radius.circular(8)),
+                            borderSide: BorderSide(color: AppColors.lightGray),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: AppColors.primary),
+                            borderRadius: BorderRadius.all(Radius.circular(8)),
+                            borderSide: BorderSide(color: AppColors.primary),
                           ),
                           filled: true,
                           fillColor: AppColors.bgGray,
-                          contentPadding: const EdgeInsets.symmetric(
+                          contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
                           ),
@@ -657,13 +662,13 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         ),
                       ),
                       if (provider.wifiScanningEnabled) ...[
-                        Icon(
+                        const Icon(
                           Icons.wifi_find,
                           size: 16,
                           color: Colors.green,
                         ),
                         const SizedBox(width: 4),
-                        Text(
+                        const Text(
                           'Live Scan',
                           style: TextStyle(
                             fontSize: 12,
@@ -672,13 +677,13 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                           ),
                         ),
                       ] else ...[
-                        Icon(
+                        const Icon(
                           Icons.warning_amber_rounded,
                           size: 16,
                           color: Colors.orange,
                         ),
                         const SizedBox(width: 4),
-                        Text(
+                        const Text(
                           'Demo Mode',
                           style: TextStyle(
                             fontSize: 12,
@@ -687,6 +692,13 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                           ),
                         ),
                       ],
+                      // About button
+                      IconButton(
+                        onPressed: _showNearbyNetworksAboutDialog,
+                        icon: const Icon(Icons.info_outline),
+                        tooltip: 'About',
+                        iconSize: 20,
+                      ),
                     ],
                   );
                 },
@@ -698,7 +710,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           Consumer<NetworkProvider>(
             builder: (context, provider, child) {
               final networks = provider.filteredNetworks.where((n) => 
-                n.status != NetworkStatus.blocked && !n.isConnected
+                !n.isConnected // Blocked networks are already filtered out in NetworkProvider
               ).toList();
               
               if (provider.isLoading && networks.isEmpty) {
@@ -1081,25 +1093,51 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
   /// Build compact security overview widget
   Widget _buildSecurityOverview(NetworkProvider provider) {
-    final safeCount = provider.safeNetworks.length;
-    final riskyCount = provider.highRiskNetworks.length;
-    final threatsCount = provider.threatsDetected;
+    // CRITICAL FIX: Only count threats from nearby networks (filteredNetworks), not all scanned networks
+    final nearbyNetworks = provider.filteredNetworks.where((n) => !n.isConnected).toList();
+    
+    final nearbyThreats = nearbyNetworks.where((n) => 
+      n.status == NetworkStatus.suspicious || n.status == NetworkStatus.flagged
+    ).toList();
+    
+    final nearbySafe = nearbyNetworks.where((n) => 
+      n.status == NetworkStatus.verified || n.status == NetworkStatus.trusted
+    ).toList();
+    
+    final nearbyRisky = nearbyNetworks.where((n) => 
+      n.status == NetworkStatus.unknown
+    ).toList();
+    
+    // Check for hidden suspicious networks (blocked by user)
+    final allSuspiciousNetworks = provider.networks.where((n) => 
+      n.status == NetworkStatus.suspicious || n.status == NetworkStatus.flagged
+    ).toList();
+    
+    final hiddenThreats = allSuspiciousNetworks.length - nearbyThreats.length;
+    final hasHiddenThreats = hiddenThreats > 0;
+    
+    // Don't show widget if no threats in nearby networks and no hidden threats
+    if (nearbyThreats.isEmpty && !hasHiddenThreats) {
+      return const SizedBox.shrink();
+    }
+    
+    final showThreats = nearbyThreats.isNotEmpty || hasHiddenThreats;
     
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: threatsCount > 0 ? Colors.red.shade50 : Colors.green.shade50,
-        borderRadius: BorderRadius.circular(8),
+        color: showThreats ? Colors.red.shade50 : Colors.green.shade50,
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
         border: Border.all(
-          color: threatsCount > 0 ? Colors.red.shade200 : Colors.green.shade200,
+          color: showThreats ? Colors.red.shade200 : Colors.green.shade200,
           width: 1,
         ),
       ),
       child: Row(
         children: [
           Icon(
-            threatsCount > 0 ? Icons.security : Icons.verified_user,
-            color: threatsCount > 0 ? Colors.red.shade700 : Colors.green.shade700,
+            showThreats ? Icons.security : Icons.verified_user,
+            color: showThreats ? Colors.red.shade700 : Colors.green.shade700,
             size: 20,
           ),
           const SizedBox(width: 8),
@@ -1112,30 +1150,81 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
-                    color: threatsCount > 0 ? Colors.red.shade800 : Colors.green.shade800,
+                    color: showThreats ? Colors.red.shade800 : Colors.green.shade800,
                   ),
                 ),
-                Text(
-                  '$safeCount safe • $riskyCount risky • $threatsCount threats',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: threatsCount > 0 ? Colors.red.shade600 : Colors.green.shade600,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Show nearby networks status
+                    if (nearbyThreats.isNotEmpty)
+                      Text(
+                        '${nearbySafe.length} safe • ${nearbyRisky.length} unknown • ${nearbyThreats.length} threats nearby',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.red.shade600,
+                        ),
+                      ),
+                    // Show hidden threats message
+                    if (hasHiddenThreats && nearbyThreats.isEmpty)
+                      Text(
+                        '$hiddenThreats suspicious network${hiddenThreats > 1 ? 's' : ''} blocked/hidden',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.orange.shade600,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    // Show both nearby and hidden
+                    if (hasHiddenThreats && nearbyThreats.isNotEmpty)
+                      Text(
+                        '+$hiddenThreats blocked threat${hiddenThreats > 1 ? 's' : ''}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.orange.shade600,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),
           ),
-          if (threatsCount > 0)
+          if (nearbyThreats.isNotEmpty)
             GestureDetector(
               onTap: () => MainScreen.navigateToTab(context, 2), // Navigate to alerts
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Colors.red,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
                 ),
-                child: Text(
+                child: const Text(
                   'View Alerts',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          // Show manage button for hidden threats only - opens settings drawer with Access Point Manager
+          if (hasHiddenThreats && nearbyThreats.isEmpty)
+            GestureDetector(
+              onTap: () {
+                // CRITICAL FIX: Open settings drawer to access Access Point Manager
+                final scaffoldKey = Scaffold.of(context);
+                scaffoldKey.openEndDrawer();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade600,
+                  borderRadius: const BorderRadius.all(Radius.circular(12)),
+                ),
+                child: const Text(
+                  'Manage',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 10,
@@ -1146,6 +1235,228 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             ),
         ],
       ),
+    );
+  }
+
+  void _showNearbyNetworksAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.wifi,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'About Nearby Networks',
+                style: TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Smart Network Discovery',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Discover and analyze WiFi networks in your area with intelligent security filtering and real-time monitoring.',
+                style: TextStyle(
+                  color: Colors.grey[700],
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              
+              // Features section
+              const Text(
+                'Key Features',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              const SizedBox(height: 12),
+              
+              ...[
+                _buildFeatureItem(
+                  Icons.security_outlined,
+                  'Safety-First Sorting',
+                  'Networks are ordered by security level - safest networks appear first',
+                  AppColors.success,
+                ),
+                _buildFeatureItem(
+                  Icons.block,
+                  'Smart Filtering',
+                  'Blocked networks are automatically hidden from the list',
+                  AppColors.danger,
+                ),
+                _buildFeatureItem(
+                  Icons.wifi_find,
+                  'Live Scanning',
+                  'Real-time network discovery with continuous monitoring',
+                  AppColors.primary,
+                ),
+                _buildFeatureItem(
+                  Icons.search,
+                  'Quick Search',
+                  'Find specific networks quickly with the search function',
+                  AppColors.warning,
+                ),
+              ],
+              
+              const SizedBox(height: 20),
+              const Text(
+                'Network Status Indicators',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              const SizedBox(height: 8),
+              
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildNetworkTypeRow('🔐', 'Trusted', 'Networks you have marked as safe'),
+                    const SizedBox(height: 6),
+                    _buildNetworkTypeRow('✅', 'Verified', 'Government-verified safe networks'),
+                    const SizedBox(height: 6),
+                    _buildNetworkTypeRow('❓', 'Unknown', 'Networks that haven\'t been classified'),
+                    const SizedBox(height: 6),
+                    _buildNetworkTypeRow('🚩', 'Flagged', 'Networks you have marked as suspicious'),
+                    const SizedBox(height: 6),
+                    _buildNetworkTypeRow('⚠️', 'Suspicious', 'Networks detected as potential threats'),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.lightbulb_outline, 
+                         color: Colors.blue[600], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Tip: Networks are automatically sorted by safety level to help you choose the most secure connections.',
+                        style: TextStyle(
+                          color: Colors.blue[700],
+                          fontSize: 12,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureItem(IconData icon, String title, String description, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, size: 16, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNetworkTypeRow(String emoji, String type, String description) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 16)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: const TextStyle(fontSize: 12, color: Colors.black87),
+              children: [
+                TextSpan(
+                  text: '$type: ',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                TextSpan(text: description),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

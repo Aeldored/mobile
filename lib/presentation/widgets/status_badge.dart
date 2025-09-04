@@ -27,8 +27,8 @@ class StatusBadge extends StatelessWidget {
       case NetworkStatus.trusted:
         icon = Icons.shield;
         text = 'Trusted';
-        backgroundColor = Colors.blue.withValues(alpha: 0.1);
-        textColor = Colors.blue.shade700;
+        backgroundColor = Colors.green.withValues(alpha: 0.1);
+        textColor = Colors.green.shade700;
         break;
       case NetworkStatus.suspicious:
         icon = Icons.error;
@@ -45,8 +45,8 @@ class StatusBadge extends StatelessWidget {
       case NetworkStatus.flagged:
         icon = Icons.flag;
         text = 'Flagged';
-        backgroundColor = Colors.purple.withValues(alpha: 0.1);
-        textColor = Colors.purple.shade700;
+        backgroundColor = Colors.orange.withValues(alpha: 0.1);
+        textColor = Colors.orange.shade700;
         break;
       case NetworkStatus.unknown:
         icon = Icons.help;

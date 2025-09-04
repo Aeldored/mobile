@@ -43,3 +43,27 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Security - NEVER commit secrets, keys, or sensitive config
+google-services.json
+GoogleService-Info.plist
+firebase-adminsdk*.json
+*.key
+*.keystore
+*.jks
+*.p12
+*.pfx
+key.properties
+*.pem
+
+# Environment configuration (use env-config.md for setup)
+.env
+.env.local
+.env.production
+.env.staging
+/lib/config/secrets.dart
+/lib/config/production_secrets.dart
+
+# Sensitive local development files
+local.properties
+keystore.properties

@@ -241,7 +241,7 @@ class _ScanAnimationWidgetState extends State<ScanAnimationWidget>
                         ),
                       ),
                       // Main icon
-                      Icon(
+                      const Icon(
                         Icons.wifi,
                         color: Colors.white,
                         size: 36,
@@ -295,7 +295,7 @@ class _ScanAnimationWidgetState extends State<ScanAnimationWidget>
         animation: _particleAnimation,
         builder: (context, child) {
           final opacity = (math.sin(_particleAnimation.value * math.pi * 2 + index) + 1) / 2;
-          final distance = 100.0;
+          const distance = 100.0;
           final x = math.cos(angle) * distance;
           final y = math.sin(angle) * distance;
           

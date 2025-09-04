@@ -7,8 +7,10 @@ class AppHeader extends StatefulWidget implements PreferredSizeWidget {
   final bool showNotificationIcon;
   final bool showSettingsIcon;
   final bool showBackButton;
+  final bool showAboutIcon;
   final VoidCallback? onNotificationTap;
   final VoidCallback? onSettingsTap;
+  final VoidCallback? onAboutTap;
 
   const AppHeader({
     super.key,
@@ -16,8 +18,10 @@ class AppHeader extends StatefulWidget implements PreferredSizeWidget {
     this.showNotificationIcon = true,
     this.showSettingsIcon = true,
     this.showBackButton = false,
+    this.showAboutIcon = false,
     this.onNotificationTap,
     this.onSettingsTap,
+    this.onAboutTap,
   });
 
   @override
@@ -174,6 +178,12 @@ class _AppHeaderState extends State<AppHeader>
                         icon: Icons.menu,
                         onPressed: widget.onSettingsTap,
                         delay: 100,
+                      ),
+                    if (widget.showAboutIcon)
+                      _buildAnimatedActionButton(
+                        icon: Icons.info_outline,
+                        onPressed: widget.onAboutTap,
+                        delay: 200,
                       ),
                   ],
                 ),

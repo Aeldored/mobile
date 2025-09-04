@@ -1,5 +1,5 @@
 import 'dart:developer' as developer;
-import 'dart:math' show cos, sin;
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -7,6 +7,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../providers/network_provider.dart';
 import '../../../../providers/settings_provider.dart';
@@ -14,8 +17,8 @@ import '../../../../providers/map_state_provider.dart';
 import '../../../../data/services/geocoding_service.dart';
 import '../../../../data/services/access_point_service.dart';
 import '../../../../data/services/permission_service.dart';
+import '../../../../data/services/whitelist_service.dart';
 import '../../../../data/models/network_model.dart';
-import '../../main_screen.dart';
 
 class NetworkMapWidget extends StatefulWidget {
   const NetworkMapWidget({super.key});
@@ -24,16 +27,19 @@ class NetworkMapWidget extends StatefulWidget {
   State<NetworkMapWidget> createState() => _NetworkMapWidgetState();
 }
 
-class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepAliveClientMixin {
-  final MapController _mapController = MapController();
+class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
+  late final MapController _mapController;
   final GeocodingService _geocodingService = GeocodingService();
   final AccessPointService _accessPointService = AccessPointService();
   final PermissionService _permissionService = PermissionService();
+  // Removed: Using NetworkProvider as single source of truth for whitelist data
+  // final WhitelistService _whitelistService = WhitelistService();
   
   @override
   bool get wantKeepAlive => true;
   
   bool _isMapExpanded = false;
+  MapOptions? _mapOptions;
   String _selectedProvince = 'All';
   LatLng? _currentLocation;
   bool _isLocating = false;
@@ -41,12 +47,29 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
   bool _isLegendExpanded = false;
   bool _isMapReady = false;
   bool _mapInitialized = false;
+  // Note: _showWhitelistedNetworks now comes from SettingsProvider
+  List<WhitelistEntry> _whitelistedNetworks = [];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _mapController = MapController();
+    _initializeMapOptions();
     _accessPointService.initialize();
     _checkLocationPermission();
+    _loadWhitelistedNetworks();
+    
+    // Debug: Test whitelist service immediately and after delay
+    _testWhitelistService();
+    
+    // Also test after a delay to ensure Firebase is ready
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      if (mounted) {
+        developer.log('🔄 DELAYED TEST: Testing whitelist after 1 second...');
+        _testWhitelistService();
+      }
+    });
     
     // Set map as ready after a brief delay to allow for initialization
     Future.delayed(const Duration(milliseconds: 500), () {
@@ -55,13 +78,76 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
           _isMapReady = true;
         });
         _initializeMapState();
+        
+        // Force multiple whitelist loads to ensure success
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted && _whitelistedNetworks.isEmpty) {
+            developer.log('🔄 Map ready, forcing whitelist reload attempt 1...');
+            _loadWhitelistedNetworks();
+          }
+        });
+        
+        Future.delayed(const Duration(milliseconds: 2000), () {
+          if (mounted && _whitelistedNetworks.isEmpty) {
+            developer.log('🔄 2 seconds later, forcing whitelist reload attempt 2...');
+            _loadWhitelistedNetworks();
+          }
+        });
+        
+        Future.delayed(const Duration(milliseconds: 5000), () {
+          if (mounted && _whitelistedNetworks.isEmpty) {
+            developer.log('🔄 5 seconds later, forcing whitelist reload attempt 3...');
+            _loadWhitelistedNetworks();
+          }
+        });
+        
+        // Extended retry attempts for Firebase initialization
+        Future.delayed(const Duration(milliseconds: 10000), () {
+          if (mounted && _whitelistedNetworks.isEmpty) {
+            developer.log('🔄 10 seconds later, forcing whitelist reload attempt 4...');
+            _loadWhitelistedNetworks();
+          }
+        });
+        
+        Future.delayed(const Duration(milliseconds: 15000), () {
+          if (mounted && _whitelistedNetworks.isEmpty) {
+            developer.log('🔄 15 seconds later, forcing whitelist reload attempt 5...');
+            _loadWhitelistedNetworks();
+          }
+        });
       }
     });
     
     // Listen for settings changes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncWithSettings();
+      // Removed auto-updates - refresh should be manual only
+      // _setupProviderListeners();
     });
+  }
+  
+
+  /// Initialize map options once to prevent assertion errors
+  void _initializeMapOptions() {
+    _mapOptions = MapOptions(
+      initialCenter: _getInitialCenter(),
+      initialZoom: _getInitialZoom(),
+      minZoom: 8.0,
+      maxZoom: 18.0,
+      // Restrict bounds to CALABARZON region
+      cameraConstraint: CameraConstraint.contain(
+        bounds: LatLngBounds(
+          const LatLng(13.0, 120.0), // Southwest
+          const LatLng(15.0, 122.0), // Northeast
+        ),
+      ),
+      onTap: (tapPosition, point) => _onMapTap(point),
+      onPositionChanged: (camera, hasGesture) => _onMapMoved(camera, hasGesture),
+      // Keep interaction options constant to avoid assertion errors
+      interactionOptions: const InteractionOptions(
+        flags: InteractiveFlag.all,
+      ),
+    );
   }
   
   /// Initialize map state and restore last camera position
@@ -92,7 +178,7 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
   /// Check if map controller is ready and safe to use
   bool _isMapControllerReady() {
     try {
-      // Check if the widget is still mounted and map is ready
+      // Check if the widget is still mounted, map is ready, and controller is initialized
       return mounted && _isMapReady;
     } catch (e) {
       developer.log('Map controller not ready: $e');
@@ -100,7 +186,7 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
     }
   }
   
-  /// Safely move map camera with error handling
+  /// Safely move map camera with enhanced animation and error handling
   Future<void> _safeMapMove(LatLng position, double zoom) async {
     if (!_isMapControllerReady()) {
       developer.log('Map controller not ready for move operation');
@@ -108,7 +194,25 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
     }
     
     try {
-      _mapController.move(position, zoom);
+      // Use smooth animated move for better user experience
+      final currentZoom = _mapController.camera.zoom;
+      final targetZoom = zoom;
+      
+      // If zooming in significantly, do a two-step animation for smoother UX
+      if (targetZoom - currentZoom > 4.0) {
+        // First step: Move to location with current zoom
+        _mapController.move(position, currentZoom);
+        await Future.delayed(const Duration(milliseconds: 300));
+        
+        // Second step: Zoom in smoothly
+        if (_isMapControllerReady()) {
+          _mapController.move(position, targetZoom);
+        }
+      } else {
+        // Direct smooth move for smaller zoom changes
+        _mapController.move(position, targetZoom);
+      }
+      
     } catch (e) {
       developer.log('Map move failed: $e');
       // Retry once after a short delay
@@ -152,6 +256,197 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
     }
   }
 
+  /// Load whitelisted networks from Firestore with offline support
+  Future<void> _loadWhitelistedNetworks() async {
+    try {
+      developer.log('🔍 MAIN LOAD: Loading whitelisted networks from map widget...');
+      
+      // Check if Firebase is initialized first
+      if (Firebase.apps.isEmpty) {
+        developer.log('⚠️ MAIN LOAD: Firebase not initialized yet, will retry later');
+        return;
+      }
+      
+      developer.log('🔍 MAIN LOAD: Getting whitelist entries from NetworkProvider...');
+      final networkProvider = Provider.of<NetworkProvider>(context, listen: false);
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      
+      developer.log('🔍 MAIN LOAD DEBUG:');
+      developer.log('   - Firebase enabled: ${networkProvider.firebaseEnabled}');
+      developer.log('   - Show verified networks: ${settingsProvider.showVerifiedNetworks}');
+      developer.log('   - Current whitelist null: ${networkProvider.currentWhitelist == null}');
+      if (networkProvider.currentWhitelist != null) {
+        developer.log('   - Current whitelist access points: ${networkProvider.currentWhitelist!.accessPoints.length}');
+      }
+      
+      // CRITICAL FIX: Check if NetworkProvider Firebase is initialized, if not, initialize it
+      if (!networkProvider.firebaseEnabled) {
+        developer.log('🔧 MAIN LOAD: NetworkProvider Firebase not initialized, initializing now...');
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await networkProvider.initializeFirebase(prefs);
+          developer.log('✅ MAIN LOAD: NetworkProvider Firebase initialized successfully');
+          developer.log('   - After init, whitelist access points: ${networkProvider.currentWhitelist?.accessPoints.length ?? 0}');
+        } catch (e) {
+          developer.log('❌ MAIN LOAD: NetworkProvider Firebase initialization failed: $e');
+        }
+      }
+      
+      final whitelistEntries = networkProvider.getWhitelistEntries();
+      
+      developer.log('📊 Received ${whitelistEntries.length} whitelist entries');
+      
+      // Debug: Log details of first few entries
+      for (int i = 0; i < whitelistEntries.length && i < 3; i++) {
+        final entry = whitelistEntries[i];
+        developer.log('📍 Entry $i: ${entry.ssid} at (${entry.latitude}, ${entry.longitude}) - Valid: ${entry.hasValidLocation}');
+      }
+      
+      if (mounted) {
+        setState(() {
+          _whitelistedNetworks = whitelistEntries;
+        });
+        developer.log('✅ Set ${whitelistEntries.length} whitelisted networks from database in state');
+        final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+        developer.log('🎯 Show whitelist flag: ${settingsProvider.showVerifiedNetworks}');
+      }
+    } catch (e) {
+      developer.log('❌ Error loading whitelist: $e');
+      developer.log('❌ Error type: ${e.runtimeType}');
+      
+      // No fallback - use empty list if database fails
+      if (mounted) {
+        setState(() {
+          _whitelistedNetworks = [];
+        });
+        developer.log('⚠️ Using empty whitelist due to database error');
+      }
+    }
+  }
+  /// Toggle whitelist visibility with forced map rebuild
+  void _toggleWhitelistVisibility() {
+    developer.log('🔄 TOGGLE WHITELIST BUTTON PRESSED!');
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    developer.log('  - Current state: ${settingsProvider.showVerifiedNetworks}');
+    developer.log('  - Current count: ${_whitelistedNetworks.length}');
+    
+    // Use the SettingsProvider to toggle and persist the setting
+    settingsProvider.toggleShowVerifiedNetworks();
+    
+    developer.log('  - New state: ${settingsProvider.showVerifiedNetworks}');
+    
+    // CRITICAL FIX: Force map widget rebuild to ensure visibility changes apply
+    if (mounted) {
+      setState(() {
+        // Trigger widget rebuild to apply toggle changes
+        developer.log('🔄 FORCING MAP WIDGET REBUILD FOR TOGGLE VISIBILITY');
+      });
+    }
+    
+    // Refresh whitelist if showing and list is empty
+    if (settingsProvider.showVerifiedNetworks && _whitelistedNetworks.isEmpty) {
+      developer.log('  - Loading whitelist because showing but empty');
+      _loadWhitelistedNetworks();
+    }
+  }
+  
+  /// Force refresh whitelist data from NetworkProvider
+  Future<void> refreshWhitelistData() async {
+    developer.log('🔄 Force refreshing whitelist data via NetworkProvider...');
+    if (!mounted) return;
+    
+    final networkProvider = Provider.of<NetworkProvider>(context, listen: false);
+    
+    // Trigger NetworkProvider to refresh its whitelist data
+    await networkProvider.refreshWhitelist();
+    
+    // Get the updated entries
+    final whitelistEntries = networkProvider.getWhitelistEntries();
+    
+    if (mounted) {
+      setState(() {
+        _whitelistedNetworks = whitelistEntries;
+      });
+      developer.log('✅ Updated whitelist data via NetworkProvider: ${whitelistEntries.length} entries');
+    }
+  }
+  
+  /// Debug method to test whitelist service
+  Future<void> _testWhitelistService() async {
+    developer.log('🧪 TESTING WHITELIST SERVICE...');
+    developer.log('🧪 Expected: 17 access points from Firestore');
+    
+    try {
+      // Check if Firebase is initialized first
+      if (Firebase.apps.isEmpty) {
+        developer.log('🧪 ⚠️ Firebase not initialized yet, skipping direct Firestore test');
+        
+        // Test the NetworkProvider which has proper initialization checks
+        developer.log('🧪 Testing NetworkProvider (with initialization checks)...');
+        if (mounted) {
+          final networkProvider = Provider.of<NetworkProvider>(context, listen: false);
+          final entries = networkProvider.getWhitelistEntries();
+          developer.log('🧪 NETWORKPROVIDER TEST Result: ${entries.length} entries');
+        }
+        return;
+      }
+      
+      // Direct Firestore test
+      developer.log('🧪 DIRECT FIRESTORE TEST...');
+      final firestore = FirebaseFirestore.instance;
+      developer.log('🧪 Project ID: ${firestore.app.options.projectId}');
+      
+      // Test the CORRECT collection name: access_points
+      try {
+        final accessPointsTest = await firestore.collection('access_points').get();
+        developer.log('🧪 DIRECT TEST - access_points collection: ${accessPointsTest.docs.length} docs (expected 17)');
+        
+        if (accessPointsTest.docs.isNotEmpty) {
+          final firstDoc = accessPointsTest.docs.first;
+          final data = firstDoc.data();
+          developer.log('🧪 First doc ID: ${firstDoc.id}');
+          developer.log('🧪 First doc keys: ${data.keys.toList()}');
+          developer.log('🧪 SSID field: ${data['ssid'] ?? data['networkName'] ?? data['name'] ?? 'NOT FOUND'}');
+          developer.log('🧪 Latitude: ${data['latitude'] ?? data['lat'] ?? 'NOT FOUND'}');
+          developer.log('🧪 Longitude: ${data['longitude'] ?? data['lng'] ?? data['lon'] ?? 'NOT FOUND'}');
+          developer.log('🧪 IsActive: ${data['isActive'] ?? data['active'] ?? 'NOT FOUND'}');
+        }
+      } catch (e) {
+        developer.log('🧪 access_points collection error: $e');
+      }
+      
+      // Now test the NetworkProvider
+      if (mounted) {
+        final networkProvider = Provider.of<NetworkProvider>(context, listen: false);
+        final entries = networkProvider.getWhitelistEntries();
+        developer.log('🧪 NETWORKPROVIDER TEST RESULT: Got ${entries.length} whitelist entries (expected 17)');
+      
+        if (entries.length != 17) {
+          developer.log('🧪 ❌ MISMATCH: Expected 17, got ${entries.length}');
+        } else {
+          developer.log('🧪 ✅ SUCCESS: Got expected 17 entries');
+        }
+        
+        // Debug: Log first few entries
+        for (int i = 0; i < entries.length && i < 5; i++) {
+          final entry = entries[i];
+          developer.log('🧪 Entry ${i + 1}: ${entry.ssid} at (${entry.latitude}, ${entry.longitude})');
+        }
+      }
+      
+      // Also test the visibility state
+      if (mounted) {
+        final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+        developer.log('🧪 Visibility flag: ${settingsProvider.showVerifiedNetworks}');
+      }
+      developer.log('🧪 Current whitelist count in widget: ${_whitelistedNetworks.length}');
+      
+    } catch (e) {
+      developer.log('🧪 TEST ERROR: $e');
+      developer.log('🧪 Error type: ${e.runtimeType}');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
@@ -163,12 +458,10 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
       
       return AnimatedContainer(
         duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOut,
         height: _isMapExpanded 
             ? expandedHeight // 70% of screen height when expanded
             : (isSmallScreen ? 280 : 320), // Normal height
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.1),
@@ -178,7 +471,6 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
           child: Stack(
             children: [
               _buildMap(),
@@ -195,9 +487,7 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
               if (_isMapReady)
                 _buildUnifiedMapLegend(),
               
-              // Expanded map overlay hint
-              if (_isMapExpanded && _isMapReady)
-                _buildExpandedMapHint(),
+              // Map expansion is controlled only by the expand button
             ],
           ),
         ),
@@ -209,7 +499,6 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
         height: 280,
         decoration: BoxDecoration(
           color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(16),
         ),
         child: Center(
           child: Column(
@@ -246,7 +535,7 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(
+              const CircularProgressIndicator(
                 color: AppColors.primary,
                 strokeWidth: 3,
               ),
@@ -272,29 +561,17 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
       builder: (context, networkProvider, child) {
         final networks = networkProvider.networks;
         
+        // Ensure map controller is ready before building FlutterMap
+        if (!_isMapReady) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+        
         return FlutterMap(
+          key: const ValueKey('network_map'),
           mapController: _mapController,
-          options: MapOptions(
-            initialCenter: _getInitialCenter(),
-            initialZoom: _getInitialZoom(),
-            minZoom: 8.0,
-            maxZoom: 18.0,
-            // Restrict bounds to CALABARZON region
-            cameraConstraint: CameraConstraint.contain(
-              bounds: LatLngBounds(
-                const LatLng(13.0, 120.0), // Southwest
-                const LatLng(15.0, 122.0), // Northeast
-              ),
-            ),
-            onTap: (tapPosition, point) => _onMapTap(point),
-            onPositionChanged: (camera, hasGesture) => _onMapMoved(camera, hasGesture),
-            // Enhanced gesture handling
-            interactionOptions: InteractionOptions(
-              flags: _isMapExpanded 
-                ? InteractiveFlag.all
-                : InteractiveFlag.all & ~InteractiveFlag.rotate,
-            ),
-          ),
+          options: _mapOptions!,
           children: [
             // Base map tiles
             TileLayer(
@@ -318,6 +595,35 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
             // Access point markers with performance optimization
             MarkerLayer(
               markers: _buildAccessPointMarkers(networks),
+            ),
+            
+            // Whitelisted network markers - Using SettingsProvider with forced rebuild
+            Consumer<SettingsProvider>(
+              builder: (context, settings, child) {
+                developer.log('🔍 MAP BUILD - WHITELIST MARKER CHECK (FIXED):');
+                developer.log('  - Show flag: ${settings.showVerifiedNetworks}');
+                developer.log('  - Count: ${_whitelistedNetworks.length}');
+                developer.log('  - Map ready: $_isMapReady');
+                developer.log('  - Will show markers: ${settings.showVerifiedNetworks && _whitelistedNetworks.isNotEmpty}');
+                
+                // CRITICAL FIX: Always return a MarkerLayer to force consistent rebuilds
+                final shouldShowMarkers = settings.showVerifiedNetworks && _whitelistedNetworks.isNotEmpty;
+                
+                if (shouldShowMarkers) {
+                  developer.log('✅ BUILDING WHITELIST MARKERS');
+                  return MarkerLayer(
+                    key: ValueKey('whitelist_markers_${_whitelistedNetworks.length}_${settings.showVerifiedNetworks}'),
+                    markers: _buildWhitelistMarkers(),
+                  );
+                } else {
+                  developer.log('❌ HIDING WHITELIST MARKERS');
+                  // Return empty MarkerLayer instead of SizedBox to maintain layer consistency
+                  return MarkerLayer(
+                    key: ValueKey('whitelist_markers_empty_${settings.showVerifiedNetworks}'),
+                    markers: const [],
+                  );
+                }
+              },
             ),
             
             // Current location marker
@@ -351,14 +657,14 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
               });
             }
           },
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: const BorderRadius.all(Radius.circular(12)),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: const BorderRadius.all(Radius.circular(12)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.15),
@@ -389,7 +695,7 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
                   AnimatedRotation(
                     duration: const Duration(milliseconds: 300),
                     turns: _isLegendExpanded ? 0.5 : 0.0,
-                    child: Icon(
+                    child: const Icon(
                       Icons.expand_more,
                       size: 16,
                       color: AppColors.primary,
@@ -413,6 +719,11 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
                     _buildUnifiedLegendItem(Colors.red, 'Suspicious/Threats', Icons.warning_outlined),
                     _buildUnifiedLegendItem(Colors.orange, 'Unknown Status', Icons.help_outline),
                     _buildUnifiedLegendItem(Colors.blue, 'Your Connection', Icons.wifi),
+                    _buildUnifiedLegendItem(
+                      Colors.green[600]!, 
+                      'Verified Networks (${_whitelistedNetworks.length})', 
+                      Icons.verified,
+                    ),
                     const SizedBox(height: 6),
                     Row(
                       children: [
@@ -446,53 +757,6 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
     );
   }
 
-  /// Build hint overlay for expanded map
-  Widget _buildExpandedMapHint() {
-    return Positioned(
-      bottom: 16,
-      left: 16,
-      child: Material(
-        color: Colors.transparent,
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 300),
-          opacity: 0.9,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.black87,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.touch_app,
-                  color: Colors.white,
-                  size: 16,
-                ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Tap anywhere to collapse',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   /// Build unified legend item with better styling
   Widget _buildUnifiedLegendItem(Color color, String label, IconData icon) {
@@ -899,7 +1163,7 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: const BorderRadius.all(Radius.circular(8)),
                 border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
               ),
               child: Text(
@@ -973,6 +1237,192 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
     );
   }
 
+  /// Build markers for whitelisted networks
+  List<Marker> _buildWhitelistMarkers() {
+    developer.log('🗺️ Building whitelist markers...');
+    developer.log('📊 Total whitelist entries: ${_whitelistedNetworks.length}');
+    
+    final markers = <Marker>[];
+    
+    for (final whitelistEntry in _whitelistedNetworks) {
+      developer.log('🔍 Processing entry: ${whitelistEntry.ssid} - Valid location: ${whitelistEntry.hasValidLocation}');
+      if (!whitelistEntry.hasValidLocation) {
+        developer.log('⚠️ Skipping ${whitelistEntry.ssid} - invalid location');
+        continue;
+      }
+      
+      final position = LatLng(whitelistEntry.latitude, whitelistEntry.longitude);
+      
+      markers.add(
+        Marker(
+          point: position,
+          width: 36,
+          height: 36,
+          child: GestureDetector(
+            onTap: () => _showWhitelistDetails(whitelistEntry),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.green[600],
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withValues(alpha: 0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.verified,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+          ),
+        ),
+      );
+      developer.log('✅ Created marker for ${whitelistEntry.ssid} at (${whitelistEntry.latitude}, ${whitelistEntry.longitude})');
+    }
+    
+    developer.log('🎯 Built ${markers.length} whitelist markers total');
+    return markers;
+  }
+
+  /// Show details for a whitelisted network
+  void _showWhitelistDetails(WhitelistEntry entry) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.verified,
+                    color: Colors.green[600],
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.ssid,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Government Verified Network',
+                        style: TextStyle(
+                          color: Colors.green[600],
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 20),
+            
+            _buildDetailRow(Icons.location_on, 'Location', 
+                entry.address ?? '${entry.city}, ${entry.province}'),
+            if (entry.venue != null && entry.venue!.isNotEmpty)
+              _buildDetailRow(Icons.business, 'Venue', entry.venue!),
+            _buildDetailRow(Icons.calendar_today, 'Verified Date', 
+                '${entry.verifiedAt.day}/${entry.verifiedAt.month}/${entry.verifiedAt.year}'),
+            
+            if (entry.notes != null && entry.notes!.isNotEmpty)
+              _buildDetailRow(Icons.note, 'Notes', entry.notes!),
+            
+            const SizedBox(height: 20),
+            
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.security, color: Colors.green[600]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'This network has been verified as safe by DICT Philippines.',
+                      style: TextStyle(
+                        color: Colors.green[800],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: Colors.grey[600]),
+          const SizedBox(width: 12),
+          Text(
+            '$label:',
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: Colors.grey[700],
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMapControls() {
     return Stack(
       children: [
@@ -988,7 +1438,7 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: const BorderRadius.all(Radius.circular(12)),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.15),
@@ -1023,10 +1473,9 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
               
               const SizedBox(height: 12),
               
-              // Reset view button
-              Consumer<MapStateProvider>(
-                builder: (context, mapState, child) {
-                  final hasCustomPosition = mapState.hasCustomCameraPosition;
+              // Whitelist toggle - Using SettingsProvider
+              Consumer<SettingsProvider>(
+                builder: (context, settings, child) {
                   return Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
@@ -1039,17 +1488,17 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
                       ],
                     ),
                     child: Tooltip(
-                      message: hasCustomPosition 
-                          ? 'Reset to CALABARZON region view' 
-                          : 'Default view (no reset needed)',
+                      message: settings.showVerifiedNetworks 
+                          ? 'Hide verified networks (${_whitelistedNetworks.length})' 
+                          : 'Show verified networks (${_whitelistedNetworks.length})',
                       child: FloatingActionButton.small(
-                        heroTag: "reset_view_button",
-                        onPressed: hasCustomPosition ? _resetMapView : null,
-                        backgroundColor: hasCustomPosition ? Colors.white : Colors.grey[300],
+                        heroTag: "whitelist_toggle_button",
+                        onPressed: _toggleWhitelistVisibility,
+                        backgroundColor: settings.showVerifiedNetworks ? Colors.green[50] : Colors.white,
                         elevation: 0,
                         child: Icon(
-                          Icons.home,
-                          color: hasCustomPosition ? AppColors.primary : Colors.grey[500],
+                          settings.showVerifiedNetworks ? Icons.verified : Icons.verified_outlined,
+                          color: settings.showVerifiedNetworks ? Colors.green[600] : Colors.grey[600],
                           size: 20,
                         ),
                       ),
@@ -1139,7 +1588,7 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
                     elevation: 0,
                     onPressed: _isLocating ? null : _centerOnCurrentLocation,
                     child: _isLocating 
-                        ? SizedBox(
+                        ? const SizedBox(
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(
@@ -1156,6 +1605,38 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
                 ),
               );
             },
+          ),
+        ),
+        
+        // Left-side controls (Refresh button - opposite to verified network toggle)
+        Positioned(
+          top: 80, // Position below the legend
+          left: 16,
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Tooltip(
+              message: 'Refresh verified networks (${_whitelistedNetworks.length})',
+              child: FloatingActionButton.small(
+                heroTag: "refresh_whitelist_button",
+                onPressed: _refreshWhitelistData,
+                backgroundColor: Colors.blue[50],
+                elevation: 0,
+                child: Icon(
+                  Icons.refresh,
+                  color: Colors.blue[600],
+                  size: 20,
+                ),
+              ),
+            ),
           ),
         ),
       ],
@@ -1239,69 +1720,82 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
       });
     }
     
-    // Collapse expanded map when tapping on it (allows user to exit expanded mode)
-    if (_isMapExpanded) {
-      setState(() {
-        _isMapExpanded = false;
-      });
-      
-      // Provide haptic feedback
-      HapticFeedback.lightImpact();
-      
-      // Show brief feedback message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.unfold_less, color: Colors.white, size: 16),
-              const SizedBox(width: 8),
-              const Text('Map collapsed - tap expand button to enlarge'),
-            ],
-          ),
-          backgroundColor: AppColors.primary,
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+    // Map expansion/collapse is now only controlled by the expand button
+    // No tap-to-collapse functionality for better user control
     
     // Future: Add new access point at tapped location
   }
   
 
-  /// Reset map to default CALABARZON view
-  Future<void> _resetMapView() async {
+
+  /// Manually refresh whitelist data from Firestore
+  Future<void> _refreshWhitelistData() async {
     try {
-      final mapStateProvider = context.read<MapStateProvider>();
-      await mapStateProvider.resetToDefault();
+      developer.log('🔄 MANUAL REFRESH: User requested whitelist refresh');
       
-      // Animate to default position
-      final defaultCenter = _geocodingService.getCalabarzonCenter();
-      await _safeMapMove(defaultCenter, 9.0);
+      // Show loading feedback
+      HapticFeedback.lightImpact();
       
-      // Clear current location display
-      setState(() {
-        _currentLocation = null;
-      });
+      // Force refresh via NetworkProvider (bypassing cache)
+      final networkProvider = Provider.of<NetworkProvider>(context, listen: false);
+      
+      // CRITICAL FIX: Ensure NetworkProvider Firebase is initialized before refresh
+      if (!networkProvider.firebaseEnabled) {
+        developer.log('🔧 MANUAL REFRESH: NetworkProvider Firebase not initialized, initializing now...');
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await networkProvider.initializeFirebase(prefs);
+          developer.log('✅ MANUAL REFRESH: NetworkProvider Firebase initialized successfully');
+        } catch (e) {
+          developer.log('❌ MANUAL REFRESH: NetworkProvider Firebase initialization failed: $e');
+        }
+      }
+      
+      await networkProvider.forceRefreshWhitelist();
+      final refreshedEntries = networkProvider.getWhitelistEntries();
       
       if (mounted) {
+        setState(() {
+          _whitelistedNetworks = refreshedEntries;
+        });
+        
+        // Show success feedback
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.home, color: Colors.white, size: 16),
+                const Icon(Icons.refresh, color: Colors.white, size: 16),
                 const SizedBox(width: 8),
-                const Expanded(child: Text('Map reset to CALABARZON region')),
+                Text('Refreshed ${refreshedEntries.length} verified networks'),
               ],
             ),
-            backgroundColor: AppColors.primary,
+            backgroundColor: Colors.blue[600],
             duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
         );
+        
+        developer.log('✅ MANUAL REFRESH: Updated to ${refreshedEntries.length} entries');
       }
     } catch (e) {
-      developer.log('Error resetting map view: $e');
+      developer.log('❌ MANUAL REFRESH ERROR: $e');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white, size: 16),
+                SizedBox(width: 8),
+                Text('Failed to refresh - check connection'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -1534,8 +2028,8 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
     
     await mapStateProvider.updateLastKnownLocation(currentLatLng);
 
-    // Animate to current location with smooth transition
-    await _safeMapMove(currentLatLng, 14.0);
+    // Animate to current location with enhanced zoom for better UX
+    await _safeMapMove(currentLatLng, 16.0); // Increased zoom level for better location focus
 
     if (mounted) {
       // Get location name asynchronously to avoid blocking UI
@@ -1575,8 +2069,8 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
       _currentLocation = cachedLocation;
     });
 
-    // Animate to cached location
-    await _safeMapMove(cachedLocation, 14.0);
+    // Animate to cached location with enhanced zoom
+    await _safeMapMove(cachedLocation, 16.0); // Consistent zoom level for location centering
 
     if (mounted) {
       final cacheAge = mapStateProvider.getLocationCacheAgeMinutes();
@@ -1648,8 +2142,9 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // Navigate to settings tab
-              MainScreen.navigateToTab(context, 4);
+              // CRITICAL FIX: Open settings drawer instead of navigating to non-existent tab
+              final scaffoldKey = Scaffold.of(context);
+              scaffoldKey.openEndDrawer();
             },
             child: const Text('Go to Settings'),
           ),
@@ -1693,7 +2188,30 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    
+    // Removed provider listeners since auto-updates are disabled
+    // Manual refresh only
+    
+    // Properly dispose of the MapController if initialized
+    try {
+      _mapController.dispose();
+    } catch (e) {
+      developer.log('Warning: MapController dispose error: $e');
+    }
     super.dispose();
+  }
+  
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _whitelistedNetworks.isEmpty) {
+      developer.log('🔄 App resumed and whitelist empty - attempting reload...');
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (mounted) {
+          _loadWhitelistedNetworks();
+        }
+      });
+    }
   }
 }
 
@@ -1995,7 +2513,7 @@ class ClusterDetailsSheet extends StatelessWidget {
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: AppColors.primary,
                     shape: BoxShape.circle,
                   ),
@@ -2119,9 +2637,9 @@ class ClusterDetailsSheet extends StatelessWidget {
                       if (network.isConnected)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: Colors.green,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.all(Radius.circular(8)),
                           ),
                           child: const Text(
                             'Connected',

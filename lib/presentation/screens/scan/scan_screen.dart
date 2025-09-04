@@ -7,6 +7,7 @@ import '../../../providers/network_provider.dart';
 import 'widgets/scan_status_widget.dart';
 import 'widgets/quick_actions_widget.dart';
 import 'widgets/scan_result_item.dart' show ScanResult, ScanStatus, ScanResultItem;
+import 'scan_history_screen.dart';
 import '../main_screen.dart';
 import '../../widgets/demo_mode_banner.dart';
 
@@ -45,7 +46,8 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
   }
 
   List<ScanResult> _convertNetworksToScanResults(List<NetworkModel> networks) {
-    return networks.where((network) => network.status != NetworkStatus.blocked).map((network) {
+    // Blocked networks are already filtered out in NetworkProvider's filteredNetworks
+    return networks.map((network) {
       ScanStatus status;
       String description;
       
@@ -66,7 +68,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
           description = 'Flagged as suspicious by user';
           break;
         case NetworkStatus.blocked:
-          // Blocked networks are filtered out above
+          // This case should never occur since blocked networks are filtered out in NetworkProvider
           status = ScanStatus.suspicious;
           description = 'Blocked network';
           break;
@@ -110,7 +112,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return Consumer<NetworkProvider>(
       builder: (context, networkProvider, child) {
-        final scanResults = _convertNetworksToScanResults(networkProvider.networks);
+        final scanResults = _convertNetworksToScanResults(networkProvider.filteredNetworks);
         final isScanning = networkProvider.isScanning;
         final scanProgress = networkProvider.scanProgress;
         final networksFound = networkProvider.totalNetworksFound;
@@ -121,7 +123,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
           children: [
             // Demo mode banner
             if (!networkProvider.wifiScanningEnabled)
-              DemoModeBanner(
+              const DemoModeBanner(
                 customMessage: 'Demo Mode - Simulated Wi-Fi scanning for demonstration',
               ),
             
@@ -215,21 +217,19 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     MainScreen.navigateToTab(context, 0);
     
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Viewing all detected networks'),
+      const SnackBar(
+        content: Text('Viewing all detected networks'),
         backgroundColor: AppColors.primary,
-        duration: const Duration(seconds: 2),
+        duration: Duration(seconds: 2),
       ),
     );
   }
   
   void _showScanHistory() {
-    // TODO: Implement scan history dialog
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Scan history feature coming soon'),
-        backgroundColor: Colors.blue,
-        duration: const Duration(seconds: 2),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ScanHistoryScreen(),
       ),
     );
   }
@@ -239,7 +239,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
         border: Border.all(color: Colors.grey[200]!),
       ),
       child: Column(
@@ -275,7 +275,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.green[50],
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: const BorderRadius.all(Radius.circular(8)),
           border: Border.all(color: Colors.green[200]!),
         ),
         child: Row(
@@ -301,7 +301,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.orange[50],
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
         border: Border.all(color: Colors.orange[200]!),
       ),
       child: Column(
@@ -368,7 +368,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: const BorderRadius.all(Radius.circular(16)),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Row(
@@ -412,7 +412,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                   const SizedBox(height: 12),
                   Text(
                     '${(scanProgress * 100).toInt()}% Complete',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppColors.primary,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -471,7 +471,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: const BorderRadius.all(Radius.circular(12)),
         border: Border.all(color: Colors.grey[200]!),
         boxShadow: [
           BoxShadow(
@@ -498,7 +498,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
               if (scanResults.length >= 3)
                 GestureDetector(
                   onTap: _navigateToHome,
-                  child: Text(
+                  child: const Text(
                     'View All',
                     style: TextStyle(
                       color: AppColors.primary,
@@ -524,7 +524,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
         border: Border.all(color: Colors.grey[200]!),
       ),
       child: Row(
@@ -545,7 +545,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
 
   Widget _buildFloatingScanButton(bool isScanning, int threatsDetected) {
     return Container(
-      margin: EdgeInsets.zero,
+      margin: const EdgeInsets.all(0),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -583,8 +583,8 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                       ? Colors.red 
                       : (threatsDetected > 0 ? Colors.orange : AppColors.primary),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
                   ),
                   elevation: 2,
                 ),
@@ -604,7 +604,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                     backgroundColor: Colors.red[50],
                     foregroundColor: Colors.red[700],
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: const BorderRadius.all(Radius.circular(12)),
                       side: BorderSide(color: Colors.red[300]!),
                     ),
                     elevation: 0,
@@ -623,7 +623,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                     backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                     foregroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: const BorderRadius.all(Radius.circular(12)),
                       side: BorderSide(color: AppColors.primary.withValues(alpha: 0.3)),
                     ),
                     elevation: 0,

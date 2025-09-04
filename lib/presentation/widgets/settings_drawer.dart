@@ -47,7 +47,7 @@ class SettingsDrawer extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'DiSConX',
+                            'DisConX',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 20,
@@ -136,14 +136,14 @@ class SettingsDrawer extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       height: 1,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [
             Colors.transparent,
             AppColors.lightGray,
             Colors.transparent,
           ],
-          stops: const [0.0, 0.5, 1.0],
+          stops: [0.0, 0.5, 1.0],
         ),
       ),
     );
@@ -267,38 +267,6 @@ class SettingsDrawer extends StatelessWidget {
             );
           },
         ),
-        
-        // Background Scanning
-        Consumer<SettingsProvider>(
-          builder: (context, settings, child) {
-            return ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              leading: const Icon(Icons.wifi_find, color: AppColors.primary, size: 22),
-              title: const Text('Background Scanning', style: TextStyle(fontSize: 15)),
-              trailing: Switch(
-                value: settings.backgroundScanEnabled,
-                onChanged: (value) => settings.toggleBackgroundScan(),
-                activeColor: AppColors.primary,
-              ),
-            );
-          },
-        ),
-        
-        // VPN Suggestions
-        Consumer<SettingsProvider>(
-          builder: (context, settings, child) {
-            return ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              leading: const Icon(Icons.vpn_lock, color: AppColors.success, size: 22),
-              title: const Text('VPN Suggestions', style: TextStyle(fontSize: 15)),
-              trailing: Switch(
-                value: settings.vpnSuggestionsEnabled,
-                onChanged: (value) => settings.toggleVpnSuggestions(),
-                activeColor: AppColors.primary,
-              ),
-            );
-          },
-        ),
       ],
     );
   }
@@ -324,9 +292,9 @@ class SettingsDrawer extends StatelessWidget {
                     children: [
                       const Icon(Icons.storage, color: Colors.purple, size: 20),
                       const SizedBox(width: 12),
-                      Text(
+                      const Text(
                         'Storage Used',
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                       ),
                       const Spacer(),
                       Text(
@@ -403,7 +371,7 @@ class SettingsDrawer extends StatelessWidget {
           dense: true,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
           leading: const Icon(Icons.info_outline, color: AppColors.gray, size: 20),
-          title: const Text('About DiSConX', style: TextStyle(fontSize: 14)),
+          title: const Text('About DisConX', style: TextStyle(fontSize: 14)),
           trailing: const Text('v1.2.5', style: TextStyle(color: AppColors.gray, fontSize: 12)),
           onTap: () => _showAboutDialog(context),
         ),
@@ -635,7 +603,7 @@ class SettingsDrawer extends StatelessWidget {
               const SizedBox(height: 12),
               _buildHelpItem(
                 'How does evil twin detection work?',
-                'DiSConX compares detected networks against government whitelists and analyzes signal patterns to identify suspicious networks.',
+                'DisConX compares detected networks against government whitelists and analyzes signal patterns to identify suspicious networks.',
               ),
               _buildHelpItem(
                 'Why do I need location permissions?',
@@ -810,14 +778,14 @@ class SettingsDrawer extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('DiSConX Terms of Service', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('DisConX Terms of Service', style: TextStyle(fontWeight: FontWeight.bold)),
               SizedBox(height: 8),
               Text('Last Updated: January 1, 2025', style: TextStyle(fontSize: 12, color: AppColors.gray)),
               SizedBox(height: 16),
               Text('Acceptance of Terms:', style: TextStyle(fontWeight: FontWeight.w600)),
               SizedBox(height: 4),
               Text(
-                'By using DiSConX, you agree to these terms and the privacy policy. This app is provided by DICT-CALABARZON for public cybersecurity.',
+                'By using DisConX, you agree to these terms and the privacy policy. This app is provided by DICT-CALABARZON for public cybersecurity.',
                 style: TextStyle(fontSize: 13),
               ),
               SizedBox(height: 12),

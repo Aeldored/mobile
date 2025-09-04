@@ -22,8 +22,8 @@ class WiFiConnectionManager {
   bool _initialized = false;
   
   // Connection state tracking
-  final Map<String, WiFiConnectionState> _connectionStates = {};
-  final StreamController<ConnectionUpdate> _connectionUpdates = StreamController.broadcast();
+  final Map<String, WiFiConnectionState> _connectionStates = <String, WiFiConnectionState>{};
+  final StreamController<ConnectionUpdate> _connectionUpdates = StreamController<ConnectionUpdate>.broadcast();
 
   /// Stream of connection updates
   Stream<ConnectionUpdate> get connectionUpdates => _connectionUpdates.stream;
@@ -240,15 +240,15 @@ class WiFiConnectionManager {
         barrierDismissible: false,
         builder: (context) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
+          title: const Row(
             children: [
               Icon(
                 Icons.warning,
                 color: Colors.orange,
                 size: 24,
               ),
-              const SizedBox(width: 8),
-              const Text('Security Warning'),
+              SizedBox(width: 8),
+              Text('Security Warning'),
             ],
           ),
           content: Column(
@@ -407,7 +407,7 @@ class ConnectionUpdate {
   final String networkId;
   final WiFiConnectionState state;
 
-  ConnectionUpdate({
+  const ConnectionUpdate({
     required this.networkId,
     required this.state,
   });

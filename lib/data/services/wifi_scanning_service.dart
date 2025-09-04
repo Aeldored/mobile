@@ -90,20 +90,10 @@ class WiFiScanningService {
       );
       developer.log('Location updated: ${_currentLocation?.latitude}, ${_currentLocation?.longitude}');
     } catch (e) {
-      developer.log('Failed to get location: $e');
-      // Continue without location - use mock coordinates
-      _currentLocation = Position(
-        latitude: 14.2117, // Calamba, Laguna
-        longitude: 121.1644,
-        timestamp: DateTime.now(),
-        accuracy: 0,
-        altitude: 0,
-        altitudeAccuracy: 0,
-        heading: 0,
-        headingAccuracy: 0,
-        speed: 0,
-        speedAccuracy: 0,
-      );
+      developer.log('⚠️ PRODUCTION: Failed to get location: $e');
+      developer.log('⚠️ PRODUCTION: Location-based network analysis not available');
+      // No mock location in production - continue with null location
+      _currentLocation = null;
     }
   }
 

@@ -223,7 +223,7 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
                 Colors.grey[100]!,
                 Colors.grey[300]!,
               ],
-              stops: [
+              stops: const [
                 0.0,
                 0.5,
                 1.0,

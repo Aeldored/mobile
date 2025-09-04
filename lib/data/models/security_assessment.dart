@@ -87,7 +87,7 @@ enum ThreatType {
       case ThreatType.evilTwin:
         return '🎭';
       case ThreatType.signalAnomaly:
-        return '📡';
+        return '';
       case ThreatType.securityDowngrade:
         return '🔓';
       case ThreatType.suspiciousMac:

@@ -405,7 +405,7 @@ class EnhancedWiFiService {
   /// Handle network state changes from native layer
   Future<void> _handleNetworkStateChange(dynamic arguments) async {
     try {
-      developer.log('📡 Network state change detected');
+      developer.log('📌 Network state change detected');
       // Trigger security reassessment
       await refreshSecurityAnalysis();
     } catch (e) {

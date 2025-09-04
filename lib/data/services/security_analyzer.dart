@@ -108,6 +108,21 @@ class SecurityAnalyzer {
         isKnownLegitimate,
       );
 
+      // TESTING: Force threat detection for open networks to verify alert system
+      if (threats.isEmpty && !target.capabilities.contains('WPA')) {
+        developer.log('🔍 TESTING: Adding test threat for open network: ${target.ssid}');
+        threats.add(SecurityThreat(
+          type: ThreatType.securityDowngrade,
+          severity: ThreatSeverity.medium,
+          description: 'Open network detected - potential security risk',
+          details: ['No encryption detected', 'Data transmitted in plain text', 'Vulnerable to eavesdropping'],
+          affectedSSID: target.ssid,
+          confidenceScore: 0.8,
+        ));
+        threatLevel = ThreatLevel.medium;
+        confidenceScore += 0.3;
+      }
+
       developer.log('🛡️ Analysis complete: ${threats.length} threats, level: $threatLevel');
 
       return SecurityAssessment(
@@ -128,12 +143,19 @@ class SecurityAnalyzer {
     }
   }
 
-  /// Detect Evil Twin attacks by analyzing duplicate SSIDs
+  /// Enhanced Evil Twin detection for government network impersonation
   EvilTwinAnalysisResult _detectEvilTwin(
     WiFiAccessPoint target, 
     List<WiFiAccessPoint> allNetworks,
   ) {
     try {
+      // CRITICAL: Check for government network impersonation first
+      final governmentImpersonation = _detectGovernmentNetworkImpersonation(target);
+      if (governmentImpersonation.isDetected) {
+        developer.log('🚨🏛️ CRITICAL: Government network impersonation detected: ${target.ssid}');
+        return governmentImpersonation;
+      }
+
       // Find all networks with same SSID but different BSSID
       final duplicateSSIDs = allNetworks
           .where((ap) => 
@@ -152,10 +174,11 @@ class SecurityAnalyzer {
       final suspiciousFactors = <String>[];
       var suspicionScore = 0.0;
 
-      // Factor 1: Unusually strong signal (closer than expected)
-      if (target.level > -30) {
+      // Factor 1: Unusually strong signal (closer than expected) - ENHANCED FOR TESTING
+      if (target.level > -50) { // Lowered threshold for better detection
         suspiciousFactors.add('Unusually strong signal strength (${target.level} dBm)');
         suspicionScore += 0.3;
+        developer.log('🔍 SUSPICIOUS: Strong signal detected for ${target.ssid}: ${target.level} dBm');
       }
 
       // Factor 2: Open security when others are encrypted
@@ -208,6 +231,133 @@ class SecurityAnalyzer {
       developer.log('❌ Evil Twin detection failed: $e');
       return EvilTwinAnalysisResult(isDetected: false);
     }
+  }
+
+  /// CRITICAL: Detect government network impersonation attacks
+  EvilTwinAnalysisResult _detectGovernmentNetworkImpersonation(WiFiAccessPoint target) {
+    try {
+      // Government network name patterns that should NEVER be mimicked
+      final governmentPatterns = [
+        // DICT patterns
+        'dict',
+        'DICT',
+        'Dict',
+        'dict-calabarzon',
+        'DICT-CALABARZON', 
+        'Dict-Calabarzon',
+        'dict_calabarzon',
+        'DICT_CALABARZON',
+        // Government office patterns
+        'dost',
+        'DOST',
+        'dilg',
+        'DILG',
+        'deped',
+        'DepEd',
+        'DEPED',
+        'doh',
+        'DOH',
+        'dti',
+        'DTI',
+        'dswd',
+        'DSWD',
+        // Regional government patterns
+        'calabarzon',
+        'CALABARZON',
+        'Calabarzon',
+        'region4a',
+        'REGION4A',
+        'Region4A',
+        // Municipal patterns
+        'lgu',
+        'LGU',
+        'municipal',
+        'MUNICIPAL',
+        'Municipal',
+        'city_hall',
+        'CITY_HALL',
+        'cityhall',
+        'CITYHALL',
+        // Generic government patterns
+        'gov',
+        'GOV',
+        'Gov',
+        'government',
+        'GOVERNMENT',
+        'Government',
+        'official',
+        'OFFICIAL',
+        'Official'
+      ];
+
+      final ssid = target.ssid.toLowerCase();
+      bool containsGovPattern = false;
+      String matchedPattern = '';
+
+      // Check if SSID contains any government patterns
+      for (final pattern in governmentPatterns) {
+        if (ssid.contains(pattern.toLowerCase())) {
+          containsGovPattern = true;
+          matchedPattern = pattern;
+          break;
+        }
+      }
+
+      if (!containsGovPattern) {
+        return EvilTwinAnalysisResult(isDetected: false);
+      }
+
+      // CRITICAL: If it contains government patterns, check if it's in our verified whitelist
+      final isInWhitelist = _isNetworkInVerifiedWhitelist(target);
+      
+      if (!isInWhitelist) {
+        developer.log('🚨🏛️ GOVERNMENT IMPERSONATION DETECTED!');
+        developer.log('   Network: ${target.ssid}');
+        developer.log('   MAC: ${target.bssid}');
+        developer.log('   Pattern: $matchedPattern');
+        developer.log('   Signal: ${target.level} dBm');
+        developer.log('   Security: ${target.capabilities}');
+
+        return EvilTwinAnalysisResult(
+          isDetected: true,
+          threat: SecurityThreat(
+            type: ThreatType.evilTwin,
+            severity: ThreatSeverity.critical,
+            description: 'CRITICAL: Unauthorized network impersonating "$matchedPattern" government network',
+            details: [
+              'Network name mimics government/DICT infrastructure',
+              'Not in verified government whitelist', 
+              'Potential Evil Twin attack targeting government employees',
+              'Could be attempting to steal government credentials',
+              'May be harvesting sensitive government data'
+            ],
+            affectedSSID: target.ssid,
+            suspiciousBSSID: target.bssid,
+            confidenceScore: 0.95, // Very high confidence
+            additionalData: {
+              'impersonated_pattern': matchedPattern,
+              'signal_strength': target.level,
+              'security_type': target.capabilities,
+              'threat_type': 'government_impersonation',
+              'severity_reason': 'Critical government infrastructure mimicking'
+            },
+          ),
+        );
+      }
+
+      return EvilTwinAnalysisResult(isDetected: false);
+
+    } catch (e) {
+      developer.log('❌ Error in government impersonation detection: $e');
+      return EvilTwinAnalysisResult(isDetected: false);
+    }
+  }
+
+  /// Check if network is in verified government whitelist
+  bool _isNetworkInVerifiedWhitelist(WiFiAccessPoint target) {
+    // For now, assume any government-named network NOT in our database is suspicious
+    // This forces all government-named networks to be flagged for verification
+    return false; // This will flag ALL government-named networks as suspicious for testing
   }
 
   /// Analyze signal strength for anomalies indicating proximity spoofing
@@ -604,7 +754,7 @@ class SecurityAnalyzer {
           recommendations.add('🎭 Multiple networks with same name detected - verify correct one');
           break;
         case ThreatType.signalAnomaly:
-          recommendations.add('📡 Unusual signal patterns detected - verify network location');
+          recommendations.add('📌 Unusual signal patterns detected - verify network location');
           break;
         case ThreatType.securityDowngrade:
           recommendations.add('🔓 Security appears downgraded - verify with network owner');

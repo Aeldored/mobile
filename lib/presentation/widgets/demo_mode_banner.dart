@@ -39,7 +39,7 @@ class DemoModeBanner extends StatelessWidget {
         top: false,
         child: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.science,
               color: Colors.white,
               size: UIConstants.iconSM,
@@ -67,7 +67,7 @@ class DemoModeBanner extends StatelessWidget {
                     color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(UIConstants.radiusXS),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.close,
                     color: Colors.white,
                     size: UIConstants.iconXS,

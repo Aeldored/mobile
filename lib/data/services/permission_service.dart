@@ -169,7 +169,7 @@ class PermissionService {
               size: 24,
             ),
             const SizedBox(width: 8),
-            Text('Permission Required'),
+            const Text('Permission Required'),
           ],
         ),
         content: Column(
@@ -186,7 +186,7 @@ class PermissionService {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info, color: Colors.blue, size: 16),
+                  const Icon(Icons.info, color: Colors.blue, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -224,11 +224,11 @@ class PermissionService {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
             Icon(Icons.settings, color: Colors.red, size: 24),
-            const SizedBox(width: 8),
-            const Text('Settings Required'),
+            SizedBox(width: 8),
+            Text('Settings Required'),
           ],
         ),
         content: const Column(

@@ -62,7 +62,7 @@ class NetworkCard extends StatelessWidget {
                             ),
                             if (network.isSaved) ...[
                               const SizedBox(width: 4),
-                              Icon(
+                              const Icon(
                                 Icons.bookmark,
                                 size: 16,
                                 color: Colors.blue,
@@ -400,15 +400,15 @@ class NetworkCard extends StatelessWidget {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
             Icon(
               Icons.warning,
               color: Colors.blue,
               size: 24,
             ),
-            const SizedBox(width: 8),
-            const Expanded(
+            SizedBox(width: 8),
+            Expanded(
               child: Text(
                 'Unverified Network',
                 style: TextStyle(
@@ -438,7 +438,7 @@ class NetworkCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.info_outline,
                     color: Colors.blue,
                     size: 16,
@@ -447,7 +447,7 @@ class NetworkCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'Network: ${network.name}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
                         color: Colors.blue,
                         fontWeight: FontWeight.w500,

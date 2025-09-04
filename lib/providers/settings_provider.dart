@@ -18,14 +18,11 @@ class SettingsProvider extends ChangeNotifier {
   AlertProvider? _alertProvider;
   
   // Settings state
-  bool _isDarkMode = false;
   bool _locationEnabled = true;
-  bool _autoBlockSuspicious = true;
+  bool _autoBlockSuspicious = false; // CRITICAL FIX: Default to disabled as required
   bool _notificationsEnabled = true;
-  bool _backgroundScanEnabled = true;
-  bool _vpnSuggestionsEnabled = true;
-  String _language = 'en';
   int _networkHistoryDays = 30;
+  bool _showVerifiedNetworks = false; // Hide verified networks by default
   
   // Permission status tracking
   PermissionStatus _locationPermissionStatus = PermissionStatus.denied;
@@ -40,14 +37,11 @@ class SettingsProvider extends ChangeNotifier {
   final double _maxStorageMB = 100.0;
 
   // Getters
-  bool get isDarkMode => _isDarkMode;
   bool get locationEnabled => _locationEnabled;
   bool get autoBlockSuspicious => _autoBlockSuspicious;
   bool get notificationsEnabled => _notificationsEnabled;
-  bool get backgroundScanEnabled => _backgroundScanEnabled;
-  bool get vpnSuggestionsEnabled => _vpnSuggestionsEnabled;
-  String get language => _language;
   int get networkHistoryDays => _networkHistoryDays;
+  bool get showVerifiedNetworks => _showVerifiedNetworks;
   
   // Permission status getters
   PermissionStatus get locationPermissionStatus => _locationPermissionStatus;
@@ -117,34 +111,23 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   void _loadSettings() {
-    _isDarkMode = _prefs.getBool('isDarkMode') ?? false;
     _locationEnabled = _prefs.getBool('locationEnabled') ?? true;
-    _autoBlockSuspicious = _prefs.getBool('autoBlockSuspicious') ?? true;
+    _autoBlockSuspicious = _prefs.getBool('autoBlockSuspicious') ?? false; // CRITICAL FIX: Default to disabled
     _notificationsEnabled = _prefs.getBool('notificationsEnabled') ?? true;
-    _backgroundScanEnabled = _prefs.getBool('backgroundScanEnabled') ?? true;
-    _vpnSuggestionsEnabled = _prefs.getBool('vpnSuggestionsEnabled') ?? true;
-    _language = _prefs.getString('language') ?? 'en';
     _networkHistoryDays = _prefs.getInt('networkHistoryDays') ?? 30;
+    _showVerifiedNetworks = _prefs.getBool('showVerifiedNetworks') ?? false; // Default to false (hidden)
     
     notifyListeners();
   }
 
   Future<void> _saveSettings() async {
-    await _prefs.setBool('isDarkMode', _isDarkMode);
     await _prefs.setBool('locationEnabled', _locationEnabled);
     await _prefs.setBool('autoBlockSuspicious', _autoBlockSuspicious);
     await _prefs.setBool('notificationsEnabled', _notificationsEnabled);
-    await _prefs.setBool('backgroundScanEnabled', _backgroundScanEnabled);
-    await _prefs.setBool('vpnSuggestionsEnabled', _vpnSuggestionsEnabled);
-    await _prefs.setString('language', _language);
     await _prefs.setInt('networkHistoryDays', _networkHistoryDays);
+    await _prefs.setBool('showVerifiedNetworks', _showVerifiedNetworks);
   }
 
-  void toggleDarkMode() {
-    _isDarkMode = !_isDarkMode;
-    _saveSettings();
-    notifyListeners();
-  }
 
   Future<void> toggleLocation() async {
     developer.log('Toggling location: current state = $_locationEnabled');
@@ -195,7 +178,7 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> toggleAutoBlock() async {
     _autoBlockSuspicious = !_autoBlockSuspicious;
-    developer.log('Auto-block suspicious networks: $_autoBlockSuspicious');
+    developer.log('🔧 SETTINGS: Auto-block suspicious networks toggled to: $_autoBlockSuspicious');
     
     // Apply auto-block setting to NetworkProvider if available
     if (_networkProvider != null && _autoBlockSuspicious) {
@@ -212,6 +195,14 @@ class SettingsProvider extends ChangeNotifier {
         developer.log('Auto-blocked ${suspiciousNetworks.length} suspicious networks');
       }
     }
+    
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  Future<void> toggleShowVerifiedNetworks() async {
+    _showVerifiedNetworks = !_showVerifiedNetworks;
+    developer.log('Show verified networks: $_showVerifiedNetworks');
     
     await _saveSettings();
     notifyListeners();
@@ -278,38 +269,6 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> toggleBackgroundScan() async {
-    _backgroundScanEnabled = !_backgroundScanEnabled;
-    developer.log('Background scanning: $_backgroundScanEnabled');
-    
-    // Apply background scan setting to NetworkProvider
-    if (_networkProvider != null) {
-      if (_backgroundScanEnabled && isLocationActuallyAvailable) {
-        // Start background scanning if location is available
-        await _networkProvider!.startBackgroundScanning();
-      } else {
-        // Stop background scanning
-        await _networkProvider!.stopBackgroundScanning();
-      }
-    }
-    
-    await _saveSettings();
-    notifyListeners();
-  }
-
-  Future<void> toggleVpnSuggestions() async {
-    _vpnSuggestionsEnabled = !_vpnSuggestionsEnabled;
-    developer.log('VPN suggestions: $_vpnSuggestionsEnabled');
-    
-    await _saveSettings();
-    notifyListeners();
-  }
-
-  void setLanguage(String language) {
-    _language = language;
-    _saveSettings();
-    notifyListeners();
-  }
 
   void setNetworkHistoryDays(int days) {
     _networkHistoryDays = days;
@@ -378,14 +337,11 @@ class SettingsProvider extends ChangeNotifier {
     await _prefs.clear();
     
     // Reset to defaults
-    _isDarkMode = false;
     _locationEnabled = true;
-    _autoBlockSuspicious = true;
+    _autoBlockSuspicious = false; // CRITICAL FIX: Default to disabled
     _notificationsEnabled = true;
-    _backgroundScanEnabled = true;
-    _vpnSuggestionsEnabled = true;
-    _language = 'en';
     _networkHistoryDays = 30;
+    _showVerifiedNetworks = false;
     _storageUsedMB = 0.0;
     
     await _calculateStorageUsage();
@@ -433,25 +389,26 @@ class SettingsProvider extends ChangeNotifier {
     await _calculateStorageUsage();
   }
   
-  /// Check if VPN should be suggested for current network
-  bool shouldSuggestVpn(NetworkModel? currentNetwork) {
-    if (!_vpnSuggestionsEnabled || currentNetwork == null) {
-      return false;
-    }
-    
-    // Suggest VPN for suspicious networks, open networks, or unknown status
-    return currentNetwork.status == NetworkStatus.suspicious ||
-           currentNetwork.status == NetworkStatus.unknown ||
-           !currentNetwork.isSecured;
-  }
   
   /// Apply auto-block setting to new networks
   Future<void> applyAutoBlockToNetwork(NetworkModel network) async {
+    developer.log('🔍 AUTO-BLOCK CHECK: Setting enabled: $_autoBlockSuspicious, Network: ${network.name}, Status: ${network.status.name}');
+    
     if (_autoBlockSuspicious && 
         network.status == NetworkStatus.suspicious && 
         _networkProvider != null) {
       await _networkProvider!.blockNetwork(network.id);
-      developer.log('Auto-blocked suspicious network: ${network.name}');
+      developer.log('🚫 AUTO-BLOCKED suspicious network: ${network.name} (MAC: ${network.macAddress})');
+      
+      // Generate special alert for auto-blocked network
+      if (_alertProvider != null) {
+        _alertProvider!.generateAutoBlockAlert(network, scanSessionId: _networkProvider?.currentScanSessionId);
+        developer.log('🚨 Auto-block alert generated for: ${network.name}');
+      } else {
+        developer.log('⚠️ AlertProvider not available for auto-block alert generation');
+      }
+    } else if (!_autoBlockSuspicious) {
+      developer.log('ℹ️ Auto-block disabled - skipping network: ${network.name}');
     }
   }
 }

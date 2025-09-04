@@ -116,7 +116,7 @@ class ConnectionInfoWidget extends StatelessWidget {
                   ),
                   IconButton(
                     onPressed: onRefreshConnection,
-                    icon: Icon(
+                    icon: const Icon(
                       Icons.refresh,
                       color: AppColors.primary,
                       size: 20,
@@ -276,7 +276,7 @@ class ConnectionInfoWidget extends StatelessWidget {
               ),
               IconButton(
                 onPressed: onRefreshConnection,
-                icon: Icon(
+                icon: const Icon(
                   Icons.refresh,
                   color: AppColors.primary,
                   size: 20,
@@ -295,7 +295,7 @@ class ConnectionInfoWidget extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.orange, size: 16),
+                const Icon(Icons.info_outline, color: Colors.orange, size: 16),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

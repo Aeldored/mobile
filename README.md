@@ -1,299 +1,268 @@
-# DisConX Mobile - DICT Wi-Fi Security Scanner
+# DisConX Mobile App
 
-[![Flutter](https://img.shields.io/badge/Flutter-3.0%2B-blue.svg)](https://flutter.dev/)
-[![Firebase](https://img.shields.io/badge/Firebase-Ready-orange.svg)](https://firebase.google.com/)
-[![Android](https://img.shields.io/badge/Android-5.0%2B-green.svg)](https://www.android.com/)
-[![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen.svg)](#)
-[![License](https://img.shields.io/badge/License-DICT--CALABARZON-blue.svg)](#)
+**DICT Secure Connect Mobile Application for CALABARZON**
 
-## 📱 Download & Install
+A Flutter-based mobile application designed to protect citizens from evil twin Wi-Fi attacks and provide comprehensive cybersecurity awareness. Developed for the Department of Information and Communications Technology (DICT) - CALABARZON region.
 
-### Ready to Protect Your Wi-Fi? Get DiSConX Now!
+## Overview
 
-### 📥 Direct Download Options:
+DisConX Mobile is a production-ready cybersecurity application that provides real-time Wi-Fi network monitoring, threat detection, and educational content to help users identify and avoid malicious networks.
 
-**🚀 [⬇️ DOWNLOAD APK - Direct Download](https://github.com/Aeldored/disconx-suite/raw/main/mobile/releases/disconx-mobile-v1.0.0.apk)**
+### Key Features
 
-**Alternative Download Methods:**
-- **GitHub Releases**: [Browse all releases](https://github.com/Aeldored/disconx-suite/releases)
-- **Repository Files**: [View in repository](releases/disconx-mobile-v1.0.0.apk)
+- **🛡️ Evil Twin Detection** - Advanced algorithms to identify malicious Wi-Fi networks
+- **📡 Real-time Network Scanning** - Continuous monitoring of nearby Wi-Fi networks
+- **🚨 Threat Alerts** - Instant notifications for potential security risks
+- **📚 Cybersecurity Education** - Interactive learning modules and quizzes
+- **🗺️ Network Mapping** - Geographic visualization of network threats
+- **📊 Security Dashboard** - Comprehensive overview of network security status
+- **⚡ Offline-first Design** - Functionality without constant internet connection
 
-> **Latest Version**: v1.0.0 | **File Size**: ~80 MB | **Build Date**: August 2025
+## Tech Stack
 
-#### 📋 Installation Instructions:
-1. **📥 Download the APK**:
-   - Click the **"⬇️ DOWNLOAD APK - Direct Download"** button above
-   - APK will automatically download to your device's Downloads folder
-   - File name: `disconx-mobile-v1.0.0.apk`
-2. **⚙️ Enable Installation from Unknown Sources**:
-   - Go to **Settings** > **Security & Privacy** > **Install unknown apps**
-   - Select your browser/file manager and toggle **"Allow from this source"**
-3. **📲 Install DiSConX**:
-   - Tap the downloaded `disconx-mobile-v1.0.0.apk` file
-   - Follow the installation prompts
-   - Tap **"Install"** when prompted
-4. **🚀 Launch & Setup**:
-   - Open DiSConX from your app drawer
-   - Grant required permissions (Location, Wi-Fi access)
-   - Complete the quick security tutorial
+- **Framework**: Flutter SDK >=3.0.0
+- **Language**: Dart
+- **State Management**: Provider Pattern
+- **Database**: Firebase Firestore
+- **Authentication**: Firebase Auth
+- **Analytics**: Firebase Analytics & Performance
+- **Maps**: Flutter Map with Leaflet
+- **Location**: Geolocator
+- **Networking**: Dio HTTP Client
 
-#### 📋 System Requirements:
-- **Android 5.0+** (API level 21 or higher)
-- **RAM**: 2GB minimum, 4GB recommended  
-- **Storage**: 100 MB free space required
-- **Permissions**: Location, Wi-Fi state, Network access
-- **Hardware**: Wi-Fi capability required
+## Prerequisites
 
-#### 🛡️ Security & Verification:
-- **Digitally Signed**: Official DICT-CALABARZON certificate
-- **Virus Scanned**: Clean - verified by multiple security vendors
-- **Privacy Compliant**: No personal data collection without consent
-- **Open Source**: Full source code available in this repository
-
----
-
-## 🔍 Overview
-
-**DisConX (DICT Secure Connect)** is a government-grade cybersecurity mobile application developed for **DICT-CALABARZON** to protect Filipino citizens from **evil twin Wi-Fi attacks** and other wireless network threats.
-
-The app combines advanced threat detection algorithms with user education to enhance public network security awareness. Built with Flutter using clean architecture principles, DisConX offers both online and offline functionality, making it accessible even without internet connectivity.
-
-### 🎯 Mission Statement
-Empowering every Filipino with the tools and knowledge to safely navigate the digital world through advanced Wi-Fi security protection and cybersecurity education.
-
-## Key Features
-
-### Security & Detection
-- **Real-time WiFi Scanning** - Comprehensive network discovery and analysis
-- **Evil Twin Detection** - Advanced algorithms using signal pattern analysis and MAC verification
-- **Threat Scoring System** - Dynamic risk assessment (0-100 scale) for detected networks
-- **Security Alerts** - Instant notifications for potential threats
-- **Government Whitelist Integration** - Verification against approved network databases
-
-### User Experience
-- **Interactive Dashboard** - Visual network maps and security status
-- **Educational Content** - Cybersecurity learning modules and quizzes
-- **Offline Mode** - Full functionality without internet connection
-- **Material Design 3** - Modern, accessible user interface
-- **Multi-language Support** - English and Filipino/Tagalog (planned)
-
-### Technical Features
-- **Clean Architecture** - Scalable and maintainable codebase
-- **Firebase Integration** - Cloud services for data sync and analytics
-- **Cross-platform Support** - Android (primary) with iOS roadmap
-- **Performance Optimized** - 60fps UI with efficient memory usage
-### Security & Detection
-- **Real-time WiFi Scanning** - Comprehensive network discovery and analysis
-- **Evil Twin Detection** - Advanced algorithms using signal pattern analysis and MAC verification
-- **Threat Scoring System** - Dynamic risk assessment (0-100 scale) for detected networks
-- **Security Alerts** - Instant notifications for potential threats
-- **Government Whitelist Integration** - Verification against approved network databases
-
-### User Experience
-- **Interactive Dashboard** - Visual network maps and security status
-- **Educational Content** - Cybersecurity learning modules and quizzes
-- **Offline Mode** - Full functionality without internet connection
-- **Material Design 3** - Modern, accessible user interface
-- **Multi-language Support** - English and Filipino/Tagalog (planned)
-
-### Technical Features
-- **Clean Architecture** - Scalable and maintainable codebase
-- **Firebase Integration** - Cloud services for data sync and analytics
-- **Cross-platform Support** - Android (primary) with iOS roadmap
-- **Performance Optimized** - 60fps UI with efficient memory usage
-
-## Requirements
+Before setting up the project, ensure you have:
 
 - Flutter SDK >=3.0.0
-- Android 6.0+ (API Level 23+)
-- Dart >=3.0.0
+- Dart SDK >=3.0.0
+- Android Studio / VS Code with Flutter extensions
+- Android SDK (API level 21+)
+- Firebase project configured
+- Git
 
-## Quick Start
+## Installation
 
-1. Install dependencies:
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd disconx-suite/mobile
+   ```
+
+2. **Install Flutter dependencies**
    ```bash
    flutter pub get
    ```
 
-2. Run the app:
+3. **Configure Firebase**
+   - Ensure `google-services.json` is in `android/app/` directory
+   - Verify Firebase configuration in `lib/data/services/firebase_service.dart`
+
+4. **Generate launcher icons** (if needed)
    ```bash
-   flutter run
+   flutter pub run flutter_launcher_icons:main
    ```
 
-3. Build for production:
-   ```bash
-   flutter build apk --release
-   ```
+## Development Commands
+
+### Running the App
+```bash
+# Debug mode (development)
+flutter run
+
+# Release mode
+flutter run --release
+
+# Specific device
+flutter run -d <device-id>
+```
+
+### Building
+```bash
+# Android APK
+flutter build apk --release
+
+# Android App Bundle
+flutter build appbundle --release
+
+# Clean build
+flutter clean && flutter pub get && flutter run
+```
+
+### Testing & Quality
+```bash
+# Run tests
+flutter test
+
+# Code analysis (REQUIRED before commits)
+flutter analyze
+
+# Format code
+dart format .
+```
 
 ## Project Structure
 
 ```
 lib/
-├── main.dart              # Application entry point
-├── app.dart               # Root app configuration
-├── core/                  # Core utilities and theming
-│   ├── constants/         # App-wide constants
-│   ├── theme/             # Material Design 3 theming
-│   └── utils/             # Helper utilities
-├── data/                  # Data management layer
-│   ├── models/            # Data models and serialization
-│   ├── repositories/      # Repository pattern implementation
-│   └── services/          # External service integrations
-├── presentation/          # User interface layer
-│   ├── screens/           # Application screens
-│   │   ├── home/          # Dashboard and network overview
-│   │   ├── scan/          # WiFi scanning interface
-│   │   ├── alerts/        # Security alerts and threats
-│   │   ├── education/     # Learning modules and quizzes
-│   │   └── settings/      # User preferences and configuration
-│   └── widgets/           # Reusable UI components
-└── providers/             # State management providers
-├── main.dart              # Application entry point
-├── app.dart               # Root app configuration
-├── core/                  # Core utilities and theming
-│   ├── constants/         # App-wide constants
-│   ├── theme/             # Material Design 3 theming
-│   └── utils/             # Helper utilities
-├── data/                  # Data management layer
-│   ├── models/            # Data models and serialization
-│   ├── repositories/      # Repository pattern implementation
-│   └── services/          # External service integrations
-├── presentation/          # User interface layer
-│   ├── screens/           # Application screens
-│   │   ├── home/          # Dashboard and network overview
-│   │   ├── scan/          # WiFi scanning interface
-│   │   ├── alerts/        # Security alerts and threats
-│   │   ├── education/     # Learning modules and quizzes
-│   │   └── settings/      # User preferences and configuration
-│   └── widgets/           # Reusable UI components
-└── providers/             # State management providers
+├── core/
+│   ├── services/           # Core system services
+│   ├── theme/              # App theming and colors  
+│   └── utils/              # Utility functions
+├── data/
+│   ├── models/             # Data models
+│   ├── repositories/       # Data access layer
+│   └── services/           # Business logic services
+├── presentation/
+│   ├── screens/            # Application screens
+│   ├── widgets/            # Reusable UI components
+│   └── dialogs/            # Modal dialogs
+├── providers/              # State management
+└── main.dart               # Application entry point
 ```
 
-## Architecture
+## Key Components
 
-DisConX follows **Clean Architecture** principles with clear separation of concerns:
+### Security Features
+- **Security Analyzer** (`lib/data/services/security_analyzer.dart`)
+- **Wi-Fi Connection Manager** (`lib/data/services/wifi_connection_manager.dart`)
+- **Threat Reporting** (`lib/data/services/threat_reporting_service.dart`)
 
-- **Presentation Layer**: Flutter widgets and screens using Material Design 3
-- **Business Logic**: State management with Provider pattern
-- **Data Layer**: Repository pattern with intelligent caching
-- **External Services**: Firebase integration and native platform services
+### Core Services
+- **Firebase Service** (`lib/data/services/firebase_service.dart`)
+- **Education Content** (`lib/data/services/education_content_service.dart`)
+- **Network Activity Tracker** (`lib/data/services/network_activity_tracker.dart`)
+
+### UI Screens
+- **Home Screen** - Main dashboard with network overview
+- **Scan Screen** - Active network scanning interface
+- **Alerts Screen** - Security alerts and notifications
+- **Education Screen** - Learning modules and quizzes
+- **Settings Screen** - App configuration and preferences
+
+## Configuration
+
+### Environment Variables
+Key configuration is managed in:
+- `lib/data/services/firebase_service.dart` - Firebase settings
+- `android/app/build.gradle` - Android-specific configuration
+- `pubspec.yaml` - Dependencies and app metadata
+
+### Permissions
+The app requires these Android permissions:
+- `ACCESS_FINE_LOCATION` - For network location detection
+- `ACCESS_COARSE_LOCATION` - For basic location services
+- `ACCESS_WIFI_STATE` - For Wi-Fi network information
+- `CHANGE_WIFI_STATE` - For Wi-Fi connection management
+- `INTERNET` - For Firebase connectivity
 
 ## Firebase Integration
 
-The app is Firebase-ready with the following services configured:
-- **Authentication** - Anonymous and email-based auth
-- **Firestore** - Real-time data synchronization
-- **Storage** - Whitelist file downloads
-- **Analytics** - User behavior tracking
-- **Performance Monitoring** - App performance metrics
+### Required Services
+- **Firestore** - Real-time database for threats and networks
+- **Authentication** - User management
+- **Analytics** - Usage tracking
+- **Performance** - App performance monitoring
+- **Messaging** - Push notifications
 
-## Architecture
+### Collections
+- `networks` - Wi-Fi network information
+- `threats` - Security threat reports
+- `educational_content` - Learning materials
+- `user_activity` - User interaction data
 
-DisConX follows **Clean Architecture** principles with clear separation of concerns:
+## Development Guidelines
 
-- **Presentation Layer**: Flutter widgets and screens using Material Design 3
-- **Business Logic**: State management with Provider pattern
-- **Data Layer**: Repository pattern with intelligent caching
-- **External Services**: Firebase integration and native platform services
+### Code Style
+- Follow Dart/Flutter style guidelines
+- Use meaningful variable and function names
+- Add comments for complex logic
+- Maintain consistent file organization
 
-## Firebase Integration
+### State Management
+- Use Provider pattern for state management
+- Follow the dependency hierarchy: NetworkProvider → AlertProvider → SettingsProvider
+- Handle loading states appropriately
 
-The app is Firebase-ready with the following services configured:
-- **Authentication** - Anonymous and email-based auth
-- **Firestore** - Real-time data synchronization
-- **Storage** - Whitelist file downloads
-- **Analytics** - User behavior tracking
-- **Performance Monitoring** - App performance metrics
+### Error Handling
+- Implement graceful error handling
+- Provide user-friendly error messages
+- Use try-catch blocks for async operations
 
-## Development Commands
+### Performance
+- Optimize network calls
+- Implement proper caching strategies
+- Use ListView.builder for large lists
+- Dispose of controllers and streams properly
 
+## Testing
+
+### Running Tests
 ```bash
-# Dependency management
-flutter pub get              # Install dependencies
-flutter pub upgrade          # Update dependencies
+# All tests
+flutter test
 
-# Development
-flutter run --debug          # Run debug build
-flutter run --release        # Run release build
+# Specific test file
+flutter test test/models/network_model_test.dart
 
-# Code quality
-flutter analyze              # Static code analysis
-flutter test                 # Run unit tests
-flutter test --coverage      # Run tests with coverage
-
-# Build
-flutter build apk --release  # Build Android APK
-flutter build appbundle      # Build Android App Bundle
-
-# Maintenance
-flutter clean                # Clean build cache
-flutter doctor               # Check development setup
+# Test coverage
+flutter test --coverage
 ```
+
+### Test Structure
+- Unit tests for models and services
+- Widget tests for UI components
+- Integration tests for user flows
+
+## Deployment
+
+### Android Release
+1. Update version in `pubspec.yaml`
+2. Build release APK: `flutter build apk --release`
+3. Test on physical devices
+4. Distribute through appropriate channels
+
+### Pre-deployment Checklist
+- [ ] All tests passing
+- [ ] Flutter analyze returns no issues
+- [ ] Firebase configuration verified
+- [ ] Permissions properly configured
+- [ ] Release build tested on multiple devices
+- [ ] App signing configured for production
+
+## Troubleshooting
+
+### Common Issues
+
+**Firebase Connection Issues**
+- Verify `google-services.json` is correctly placed
+- Check internet connectivity
+- Ensure Firebase project is active
+
+**Permission Errors**
+- Check Android permissions in `android/app/src/main/AndroidManifest.xml`
+- Test on Android 13+ for runtime permission handling
+
+**Build Failures**
+- Run `flutter clean && flutter pub get`
+- Check Flutter SDK version compatibility
+- Verify Gradle and Android SDK versions
+
+### Getting Help
+- Check Flutter documentation: https://flutter.dev/docs
+- Firebase documentation: https://firebase.google.com/docs
+- Project issues: Contact DICT-CALABARZON development team
+
+## Contributing
+
+This is a government project for DICT-CALABARZON. Development follows internal guidelines and approval processes.
+
+## License
+
+This project is licensed under DICT-CALABARZON terms. Unauthorized reproduction or distribution is prohibited.
 
 ---
 
-## 📦 For Repository Maintainers - Building & Releasing APK
-
-### Build Production APK
-```bash
-# Navigate to mobile directory
-cd mobile
-
-# Clean previous builds
-flutter clean && flutter pub get
-
-# Build release APK
-flutter build apk --release --target-platform android-arm64
-
-# APK will be generated at: build/app/outputs/flutter-apk/app-release.apk
-```
-
-### Creating GitHub Release
-1. **Build the APK** using the commands above
-2. **Test thoroughly** on multiple Android devices
-3. **Create Git tag**:
-   ```bash
-   git tag mobile-v1.0.0
-   git push origin mobile-v1.0.0
-   ```
-4. **Create GitHub Release**:
-   - Go to repository **Releases** section
-   - Click **"Create a new release"**
-   - Select tag `mobile-v1.0.0`
-   - Upload `app-release.apk` as `disconx-mobile-v1.0.0.apk`
-   - Add release notes with features and security updates
-
----
-
-## 🤝 For End Users
-
-### Why Choose DiSConX?
-
-#### ✅ **Protect Yourself from Wi-Fi Threats**
-- **Evil Twin Detection**: Automatically identifies fake Wi-Fi hotspots trying to steal your data
-- **Real-time Scanning**: Continuously monitors networks for suspicious activity
-- **Government Verified**: Uses official DICT whitelist of safe networks
-
-#### ✅ **Learn Cybersecurity While You Browse**
-- **Interactive Education**: Built-in learning modules about Wi-Fi security
-- **Security Tips**: Practical advice for staying safe online
-- **Threat Awareness**: Understand how cybercriminals target public Wi-Fi users
-
-#### ✅ **Works Everywhere, Anytime**
-- **Offline Mode**: Full functionality without internet connection
-- **Battery Optimized**: Won't drain your phone battery
-- **Fast & Responsive**: Instant network analysis and alerts
-
-### 📞 Support & Feedback
-
-- **Technical Issues**: Create an issue in this repository
-- **Security Concerns**: Report to DICT-CALABARZON cybersecurity team
-- **Feature Requests**: Submit through GitHub Discussions
-- **General Inquiries**: Contact the development team
-
-### 📄 Privacy & Legal
-
-- **Data Collection**: Only anonymous usage statistics (optional)
-- **Location Data**: Used locally for network mapping, never transmitted
-- **Government Use**: Authorized by DICT-CALABARZON for public safety
-- **Open Source**: Full transparency with publicly available code
+**Version**: 1.0.0+1  
+**Last Updated**: September 2025  
+**Developed by**: DICT-CALABARZON Development Team

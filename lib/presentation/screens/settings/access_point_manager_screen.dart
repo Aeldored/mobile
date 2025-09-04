@@ -1,6 +1,10 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/network_model.dart';
 import '../../../data/services/access_point_service.dart';
@@ -19,6 +23,7 @@ class AccessPointManagerScreen extends StatefulWidget {
 class _AccessPointManagerScreenState extends State<AccessPointManagerScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late ScrollController _scrollController;
 
   Future<bool> _onWillPop() async {
     // Navigate back to home instead of exiting the app
@@ -30,18 +35,33 @@ class _AccessPointManagerScreenState extends State<AccessPointManagerScreen>
   
   bool _isLoading = false;
   Map<String, int> _stats = {};
+  bool _isStatsVisible = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _scrollController = ScrollController();
+    _scrollController.addListener(_handleScroll);
     _accessPointService.initialize();
     _loadStats();
+  }
+  
+  void _handleScroll() {
+    const double threshold = 50.0;
+    final bool shouldHide = _scrollController.offset > threshold;
+    
+    if (shouldHide != !_isStatsVisible) {
+      setState(() {
+        _isStatsVisible = !shouldHide;
+      });
+    }
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -70,22 +90,45 @@ class _AccessPointManagerScreenState extends State<AccessPointManagerScreen>
       backgroundColor: Colors.grey[50],
       body: Column(
         children: [
-          const AppHeader(
+          AppHeader(
             title: 'Access Point Manager',
             showBackButton: true,
+            showNotificationIcon: false, // Remove notification bell
+            showSettingsIcon: false, // Remove menu icon
+            showAboutIcon: true, // Show About button
+            onAboutTap: _showAboutDialog, // Add About button functionality
           ),
           
-          // Statistics Card
-          _buildStatsCard(),
+          // Statistics Card with scroll-to-hide animation
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            height: _isStatsVisible ? null : 0,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 300),
+              opacity: _isStatsVisible ? 1.0 : 0.0,
+              child: _buildStatsCard(),
+            ),
+          ),
           
-          // Tab Bar
+          // Tab Bar with subtle shadow
           Container(
-            color: Colors.white,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withValues(alpha: 0.15),
+                  offset: const Offset(0, 1),
+                  blurRadius: 3,
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
             child: TabBar(
               controller: _tabController,
               labelColor: AppColors.primary,
               unselectedLabelColor: Colors.grey[600],
               indicatorColor: AppColors.primary,
+              dividerColor: Colors.transparent, // Remove divider line
               tabs: [
                 Tab(
                   icon: const Icon(Icons.block),
@@ -146,15 +189,15 @@ class _AccessPointManagerScreenState extends State<AccessPointManagerScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.analytics_outlined,
                 color: AppColors.primary,
                 size: 24,
               ),
-              const SizedBox(width: 12),
-              const Text(
+              SizedBox(width: 12),
+              Text(
                 'Access Point Statistics',
                 style: TextStyle(
                   fontSize: 18,
@@ -334,6 +377,7 @@ class _AccessPointManagerScreenState extends State<AccessPointManagerScreen>
             await _loadStats();
           },
           child: ListView.builder(
+            controller: _scrollController, // Add scroll controller for stats hiding
             padding: const EdgeInsets.all(16),
             itemCount: accessPoints.length,
             itemBuilder: (context, index) {
@@ -427,6 +471,9 @@ class _AccessPointManagerScreenState extends State<AccessPointManagerScreen>
       // Refresh data
       setState(() {});
       await _loadStats();
+      
+      // Force nearby networks to update by ensuring filtered networks are refreshed
+      developer.log('🔄 Access Point Manager: ${action.name} action completed for ${network.name} - nearby networks should update automatically');
 
       // Show success message
       if (mounted) {
@@ -493,10 +540,23 @@ class _AccessPointManagerScreenState extends State<AccessPointManagerScreen>
         await _loadStats();
 
         if (mounted) {
+          // Show different messages based on removal type
+          String message;
+          switch (category) {
+            case AccessPointCategory.blocked:
+            case AccessPointCategory.trusted:
+              message = 'Access point removed successfully. Scan networks to see it with fresh security evaluation.';
+              break;
+            case AccessPointCategory.flagged:
+              message = 'Access point removed successfully';
+              break;
+          }
+          
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Access point removed successfully'),
+            SnackBar(
+              content: Text(message),
               backgroundColor: Colors.green,
+              duration: const Duration(seconds: 4), // Longer duration for scan message
             ),
           );
         }
@@ -583,20 +643,68 @@ class _AccessPointManagerScreenState extends State<AccessPointManagerScreen>
       setState(() => _isLoading = true);
       final data = await _accessPointService.exportAccessPointData();
       
-      // In a real implementation, save to file or share
+      // Create JSON string with timestamp
+      final exportData = {
+        'timestamp': DateTime.now().toIso8601String(),
+        'version': '1.0',
+        'app': 'DisConX',
+        'data': data,
+      };
+      
+      final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
+      
+      // Save to temporary file
+      final directory = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final file = File('${directory.path}/disconx_access_points_$timestamp.json');
+      await file.writeAsString(jsonString);
+      
+      // Share the file
+      final totalCount = (data['blocked']?.length ?? 0) + 
+                        (data['trusted']?.length ?? 0) + 
+                        (data['flagged']?.length ?? 0);
+                        
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'DisConX Access Points Export - $totalCount access points',
+        subject: 'DisConX Access Points Configuration',
+      );
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Exported ${data['blocked'].length + data['trusted'].length + data['flagged'].length} access points'),
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Successfully exported $totalCount access points'),
+                ),
+              ],
+            ),
             backgroundColor: Colors.green,
+            action: SnackBarAction(
+              label: 'View File',
+              textColor: Colors.white,
+              onPressed: () async {
+                await Share.shareXFiles([XFile(file.path)]);
+              },
+            ),
           ),
         );
       }
     } catch (e) {
+      developer.log('Export error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Export failed: $e'),
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Export failed: $e')),
+              ],
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -694,6 +802,66 @@ class _AccessPointManagerScreenState extends State<AccessPointManagerScreen>
         }
       }
     }
+  }
+  
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.wifi_protected_setup, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text('Access Point Manager'),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Manage and organize your Wi-Fi access points for enhanced security and convenience.',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+              ),
+              SizedBox(height: 16),
+              
+              Text('Features:', style: TextStyle(fontWeight: FontWeight.w600)),
+              SizedBox(height: 8),
+              Text('• Block suspicious or malicious networks'),
+              Text('• Trust known and safe networks'),
+              Text('• Flag networks for investigation'),
+              Text('• Bulk export and import configurations'),
+              Text('• Cloud synchronization support'),
+              Text('• Comprehensive statistics tracking'),
+              
+              SizedBox(height: 16),
+              
+              Text('Categories:', style: TextStyle(fontWeight: FontWeight.w600)),
+              SizedBox(height: 8),
+              Text('🚫 Blocked: Networks that are completely blocked'),
+              Text('🛡️ Trusted: Networks marked as safe to connect'),
+              Text('🚩 Flagged: Networks requiring attention or review'),
+              
+              SizedBox(height: 16),
+              
+              Text('Bulk Actions:', style: TextStyle(fontWeight: FontWeight.w600)),
+              SizedBox(height: 8),
+              Text('• Export data as JSON files for backup'),
+              Text('• Import configurations from other devices'),
+              Text('• Synchronize with Firebase cloud storage'),
+              Text('• Clear all managed access points'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

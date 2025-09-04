@@ -18,6 +18,9 @@ class EducationContentModel {
   final DateTime publishedDate;
   final bool isCompleted;
   final double? progress;
+  final String? category;
+  final String? author;
+  final bool? isPinned;
 
   EducationContentModel({
     required this.id,
@@ -33,6 +36,9 @@ class EducationContentModel {
     required this.publishedDate,
     this.isCompleted = false,
     this.progress,
+    this.category,
+    this.author,
+    this.isPinned,
   });
 
   String get typeString {
@@ -56,6 +62,48 @@ class EducationContentModel {
         return 'Intermediate';
       case DifficultyLevel.advanced:
         return 'Advanced';
+    }
+  }
+
+  String get categoryDisplayName {
+    if (category == null) return 'General';
+    switch (category) {
+      case 'evil_twins':
+        return 'Evil Twins';
+      case 'wifi_security':
+        return 'WiFi Security';
+      case 'public_safety':
+        return 'Public Safety';
+      case 'phishing':
+        return 'Phishing';
+      case 'device_security':
+        return 'Device Security';
+      case 'government_guidelines':
+        return 'Guidelines';
+      default:
+        return category!.replaceAll('_', ' ').split(' ')
+            .map((word) => word.isNotEmpty ? '${word[0].toUpperCase()}${word.substring(1)}' : '')
+            .join(' ');
+    }
+  }
+
+  String get categoryIcon {
+    if (category == null) return '📖';
+    switch (category) {
+      case 'evil_twins':
+        return '🎭';
+      case 'wifi_security':
+        return '🔒';
+      case 'public_safety':
+        return '🛡️';
+      case 'phishing':
+        return '🎣';
+      case 'device_security':
+        return '📱';
+      case 'government_guidelines':
+        return '🏛️';
+      default:
+        return '📖';
     }
   }
 

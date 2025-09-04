@@ -21,14 +21,8 @@
     <!-- Android 13+ (API 33+) Wi-Fi permission - RUNTIME PERMISSION REQUIRED -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:usesPermissionFlags="neverForLocation" />
     
-    <!-- Enhanced network management permissions for DisConX -->
-    <uses-permission android:name="android.permission.NETWORK_SETTINGS" />
-    <uses-permission android:name="android.permission.CONNECTIVITY_USE_RESTRICTED_NETWORKS" />
-    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
-    <uses-permission android:name="android.permission.OVERRIDE_WIFI_CONFIG" tools:ignore="ProtectedPermissions" />
-    
-    <!-- Device admin for enhanced network control -->
-    <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN" />
+    <!-- Note: System-level network permissions removed for capstone security compliance -->
+    <!-- These permissions are not required for basic Wi-Fi monitoring functionality -->
     
     <!-- Other permissions -->
     <uses-permission android:name="android.permission.CAMERA" />

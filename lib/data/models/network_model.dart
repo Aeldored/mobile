@@ -14,6 +14,10 @@ class NetworkModel {
   final SecurityType securityType;
   final int signalStrength; // 0-100
   final String macAddress;
+  
+  // Aliases for compatibility
+  String get ssid => name; // SSID is the network name
+  String get bssid => macAddress; // BSSID is the MAC address
   final double? latitude;
   final double? longitude;
   final DateTime lastSeen;
@@ -63,6 +67,7 @@ class NetworkModel {
   bool get isTrusted => status == NetworkStatus.trusted;
   bool get isFlagged => status == NetworkStatus.flagged;
   bool get isSecured => securityType != SecurityType.open;
+  bool get isVerified => status == NetworkStatus.verified;
   
   String get displayLocation => cityName ?? (latitude != null && longitude != null ? 
     '${latitude!.toStringAsFixed(4)}, ${longitude!.toStringAsFixed(4)}' : 'Unknown location');

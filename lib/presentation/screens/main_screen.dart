@@ -42,10 +42,10 @@ class _MainScreenState extends State<MainScreen>
     
     // Initialize screens with unique keys to preserve state (4 tabs now)
     _screens = [
-      HomeScreen(key: PageStorageKey('home_screen')),
-      ScanScreen(key: PageStorageKey('scan_screen')),
-      AlertsScreen(key: PageStorageKey('alerts_screen')),
-      EducationScreen(key: PageStorageKey('education_screen')),
+      const HomeScreen(key: PageStorageKey('home_screen')),
+      const ScanScreen(key: PageStorageKey('scan_screen')),
+      const AlertsScreen(key: PageStorageKey('alerts_screen')),
+      const EducationScreen(key: PageStorageKey('education_screen')),
     ];
   }
 
@@ -159,6 +159,7 @@ class _MainScreenState extends State<MainScreen>
     super.dispose();
   }
 
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
@@ -188,7 +189,7 @@ class _MainScreenState extends State<MainScreen>
           children: [
             AppHeader(
               title: _titles[_currentIndex],
-              showNotificationIcon: _currentIndex != 2, // Hide on alerts page
+              showNotificationIcon: false, // Hide notification bell on all tabs
               showSettingsIcon: true, // Show hamburger menu on right side
               onNotificationTap: _onNotificationTap,
               onSettingsTap: _onSettingsTap,

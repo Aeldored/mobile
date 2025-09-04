@@ -1,18 +1,23 @@
 import 'dart:developer' as developer;
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../data/models/network_model.dart';
 import '../data/services/firebase_service.dart';
+import '../data/services/whitelist_service.dart';
 import '../data/services/wifi_scanning_service.dart';
 import '../data/services/access_point_service.dart';
 import '../data/services/current_connection_service.dart';
 import '../data/services/permission_service.dart';
 import '../data/services/wifi_connection_service.dart';
 import '../data/services/enhanced_wifi_service.dart';
+import '../data/services/scan_history_service.dart';
 import '../data/models/security_assessment.dart';
+import '../data/models/scan_history_model.dart';
 import '../data/repositories/whitelist_repository.dart';
 import 'alert_provider.dart';
+import 'settings_provider.dart';
 
 class NetworkProvider extends ChangeNotifier {
   List<NetworkModel> _networks = [];
@@ -27,7 +32,9 @@ class NetworkProvider extends ChangeNotifier {
   final Set<String> _trustedNetworkIds = {};
   final Set<String> _flaggedNetworkIds = {};
   final Map<String, NetworkStatus> _originalStatuses = {}; // Track original statuses before user modifications
+  Map<String, NetworkStatus> _macToStatusMap = {}; // CRITICAL FIX: MAC address to status mapping for AccessPointService sync
   AlertProvider? _alertProvider;
+  SettingsProvider? _settingsProvider;
   bool _hasPerformedScan = false;
   int _scanSessionId = 0;
   final Set<String> _alertedNetworksThisSession = <String>{};
@@ -68,6 +75,12 @@ class NetworkProvider extends ChangeNotifier {
   final Map<String, SecurityAssessment> _securityAssessments = {};
   bool _securityAnalysisEnabled = false;
 
+  // Scan history service
+  final ScanHistoryService _scanHistoryService = ScanHistoryService();
+  DateTime? _scanStartTime;
+  
+  // Mock threat service for testing suggestions
+
   List<NetworkModel> get networks => _networks;
   List<NetworkModel> get filteredNetworks => _filteredNetworks;
   NetworkModel? get currentNetwork => _currentNetwork;
@@ -96,6 +109,10 @@ class NetworkProvider extends ChangeNotifier {
   // Security assessment getters
   bool get securityAnalysisEnabled => _securityAnalysisEnabled;
   Map<String, SecurityAssessment> get securityAssessments => Map.from(_securityAssessments);
+
+  // Scan history getters
+  ScanHistoryService get scanHistoryService => _scanHistoryService;
+  List<ScanHistoryEntry> get scanHistory => _scanHistoryService.history;
   
   /// Get security assessment for a specific network
   SecurityAssessment? getSecurityAssessment(String networkId) {
@@ -115,12 +132,15 @@ class NetworkProvider extends ChangeNotifier {
   }).toList();
 
   NetworkProvider() {
-    _initializeMockData();
+    _initializeRealNetworks();
     _initializeWiFiScanning();
     _initializeAccessPointService();
     _initializeCurrentConnection();
     _initializeSecurityAnalysis();
+    _initializeScanHistory();
     loadUserPreferences();
+    // CRITICAL FIX: Load user-defined statuses from AccessPointService after initialization
+    _syncWithAccessPointService();
   }
 
   /// Initialize Wi-Fi scanning service
@@ -192,10 +212,20 @@ class NetworkProvider extends ChangeNotifier {
           _securityAssessments.clear();
           for (final assessment in assessments) {
             _securityAssessments[assessment.networkId] = assessment;
+            
+            // CRITICAL FIX: Apply security assessment results to network status
+            _applySecurityAssessmentToNetworks(assessment);
+            
+            // Check for Evil Twin attacks against whitelist networks
+            _checkForWhitelistMimicking(assessment);
           }
           
           // Update threat statistics
           _updateThreatStatistics();
+          
+          // CRITICAL FIX: Generate alerts for detected threats
+          _generateScanBasedAlerts();
+          
           notifyListeners();
           
           developer.log('🛡️ Security assessments updated: ${assessments.length} networks analyzed');
@@ -208,6 +238,43 @@ class NetworkProvider extends ChangeNotifier {
     } catch (e) {
       developer.log('❌ Failed to initialize security analysis: $e');
       _securityAnalysisEnabled = false;
+    }
+  }
+
+  /// Initialize scan history service
+  Future<void> _initializeScanHistory() async {
+    try {
+      await _scanHistoryService.initialize();
+      developer.log('📚 Scan history service initialized');
+    } catch (e) {
+      developer.log('❌ Failed to initialize scan history: $e');
+    }
+  }
+
+
+  /// Record completed scan in history
+  Future<void> _recordScanInHistory({required bool wasSuccessful, String? errorMessage}) async {
+    if (_scanStartTime == null) return;
+    
+    try {
+      final scanDuration = DateTime.now().difference(_scanStartTime!);
+      final scanType = _isManualScan ? ScanType.manual : ScanType.background;
+      
+      await _scanHistoryService.addScanEntry(
+        scanType: scanType,
+        scanDuration: scanDuration,
+        networksFound: _totalNetworksFound,
+        verifiedNetworks: _verifiedNetworksFound,
+        suspiciousNetworks: _suspiciousNetworksFound,
+        threatsDetected: _threatsDetected,
+        networks: _networks,
+        wasSuccessful: wasSuccessful,
+        errorMessage: errorMessage,
+      );
+      
+      developer.log('📝 Recorded scan in history: ${scanType.name}, ${scanDuration.inSeconds}s, $_totalNetworksFound networks');
+    } catch (e) {
+      developer.log('❌ Failed to record scan in history: $e');
     }
   }
 
@@ -306,18 +373,28 @@ class NetworkProvider extends ChangeNotifier {
     _alertProvider = alertProvider;
   }
 
+  void setSettingsProvider(SettingsProvider settingsProvider) {
+    _settingsProvider = settingsProvider;
+  }
+
   // Initialize Firebase integration
   Future<void> initializeFirebase(SharedPreferences prefs) async {
+    developer.log('🔥 NETWORKPROVIDER: initializeFirebase called');
     try {
+      developer.log('🔥 NETWORKPROVIDER: Creating FirebaseService...');
       _firebaseService = FirebaseService();
+      developer.log('🔥 NETWORKPROVIDER: Creating WhitelistRepository...');
       _whitelistRepository = WhitelistRepository(
         firebaseService: _firebaseService!,
         prefs: prefs,
       );
       
+      developer.log('🔥 NETWORKPROVIDER: Setting _firebaseEnabled = true');
       _firebaseEnabled = true;
       
-      // Load whitelist
+      // Clear any cached data and force fresh fetch during initialization
+      developer.log('🔥 NETWORKPROVIDER: Clearing cache and force refreshing...');
+      await _whitelistRepository!.clearCache();
       await refreshWhitelist();
       
       // Listen for whitelist updates
@@ -326,9 +403,11 @@ class NetworkProvider extends ChangeNotifier {
         refreshWhitelist();
       });
       
+      
       developer.log('Firebase integration initialized successfully');
     } catch (e) {
       developer.log('Firebase initialization failed: $e');
+      developer.log('Error details: ${e.toString()}');
       _firebaseEnabled = false;
     }
   }
@@ -349,10 +428,102 @@ class NetworkProvider extends ChangeNotifier {
     }
   }
 
+  // Force refresh whitelist from Firebase (bypasses cache)
+  Future<void> forceRefreshWhitelist() async {
+    developer.log('🔄 FORCE REFRESH DEBUG: Starting...');
+    developer.log('   - _firebaseEnabled: $_firebaseEnabled');
+    developer.log('   - _whitelistRepository != null: ${_whitelistRepository != null}');
+    
+    if (!_firebaseEnabled || _whitelistRepository == null) {
+      developer.log('❌ FORCE REFRESH: Early return - Firebase not enabled or repository null');
+      return;
+    }
+    
+    try {
+      developer.log('🔄 Force refreshing whitelist from Firebase...');
+      final data = await _whitelistRepository!.getWhitelist(forceRefresh: true);
+      developer.log('🔄 FORCE REFRESH: Repository returned data = ${data != null}');
+      if (data != null) {
+        developer.log('🔄 FORCE REFRESH: Data has ${data.accessPoints.length} access points');
+        _currentWhitelist = data;
+        developer.log('✅ Force refresh completed: ${data.accessPoints.length} access points loaded');
+        notifyListeners();
+      } else {
+        developer.log('⚠️ Force refresh returned null data');
+      }
+    } catch (e) {
+      developer.log('❌ Error in force refresh whitelist: $e');
+      developer.log('❌ Error stack: ${e.toString()}');
+    }
+  }
+
   // Check if network is whitelisted
   bool isNetworkWhitelisted(String macAddress) {
     if (!_firebaseEnabled || _whitelistRepository == null) return false;
     return _whitelistRepository!.isNetworkWhitelisted(macAddress, _currentWhitelist);
+  }
+
+  /// Convert WhitelistData to List<WhitelistEntry> for map widget compatibility
+  List<WhitelistEntry> getWhitelistEntries() {
+    developer.log('🔍 NETWORKPROVIDER DEBUG: getWhitelistEntries() called');
+    developer.log('   - _currentWhitelist is null: ${_currentWhitelist == null}');
+    if (_currentWhitelist != null) {
+      developer.log('   - _currentWhitelist.accessPoints.length: ${_currentWhitelist!.accessPoints.length}');
+      if (_currentWhitelist!.accessPoints.isNotEmpty) {
+        final sample = _currentWhitelist!.accessPoints.first;
+        developer.log('   - Sample access point: SSID="${sample.ssid}", status="${sample.status}", isVerified="${sample.isVerified}"');
+        developer.log('   - Sample coordinates: lat=${sample.latitude}, lng=${sample.longitude}');
+      }
+    }
+    
+    if (_currentWhitelist == null) return [];
+    
+    final entries = <WhitelistEntry>[];
+    int validLocationCount = 0;
+    int invalidLocationCount = 0;
+    
+    for (final accessPoint in _currentWhitelist!.accessPoints) {
+      final entry = WhitelistEntry(
+        id: accessPoint.id,
+        ssid: accessPoint.ssid,
+        macAddress: accessPoint.macAddress,
+        latitude: accessPoint.latitude,
+        longitude: accessPoint.longitude,
+        region: accessPoint.region,
+        province: accessPoint.province,
+        city: accessPoint.city,
+        venue: accessPoint.venue, // Use actual venue from Firestore
+        barangay: accessPoint.barangay, // Use actual barangay from Firestore  
+        verifiedBy: accessPoint.verifiedBy ?? 'DICT CALABARZON',
+        verifiedAt: accessPoint.verifiedAt ?? _currentWhitelist!.lastUpdated,
+        addedAt: accessPoint.verifiedAt ?? _currentWhitelist!.lastUpdated,
+        isActive: true,
+        notes: null, // No notes displayed
+      );
+      
+      // Debug the original AccessPointData coordinates
+      developer.log('🔍 Processing AccessPointData: ${accessPoint.ssid}');
+      developer.log('   - Original AP coordinates: lat=${accessPoint.latitude}, lng=${accessPoint.longitude}');
+      developer.log('   - WhitelistEntry coordinates: lat=${entry.latitude}, lng=${entry.longitude}');
+      developer.log('   - hasValidLocation: ${entry.hasValidLocation}');
+      
+      if (entry.hasValidLocation) {
+        validLocationCount++;
+        developer.log('✅ Valid entry: ${entry.ssid} at (${entry.latitude}, ${entry.longitude})');
+      } else {
+        invalidLocationCount++;
+        developer.log('❌ Invalid entry: ${entry.ssid} at (${entry.latitude}, ${entry.longitude}) - will not show on map');
+      }
+      
+      entries.add(entry);
+    }
+    
+    developer.log('🎯 NETWORKPROVIDER SUMMARY:');
+    developer.log('   - Total entries: ${entries.length}');
+    developer.log('   - Valid locations: $validLocationCount');
+    developer.log('   - Invalid locations: $invalidLocationCount');
+    
+    return entries;
   }
 
   // Report suspicious network to Firebase
@@ -389,8 +560,8 @@ class NetworkProvider extends ChangeNotifier {
     }
   }
 
-  void _initializeMockData() {
-    // Initialize with empty network list - networks will be populated during scans
+  void _initializeRealNetworks() {
+    // Initialize with empty network list - networks will only be populated from real scans
     _networks = [];
     
     // No mock current network - will be detected by CurrentConnectionService
@@ -398,6 +569,8 @@ class NetworkProvider extends ChangeNotifier {
     
     // Update filtered networks with current search query
     _updateFilteredNetworks();
+    
+    developer.log('🏗️ NetworkProvider initialized for PRODUCTION - no mock data');
   }
 
   /// Start a new network scan with progress tracking
@@ -410,6 +583,7 @@ class NetworkProvider extends ChangeNotifier {
     _scanSessionId++;
     _lastScanTime = DateTime.now();
     _isManualScan = isManualScan;
+    _scanStartTime = DateTime.now(); // Track scan start time for history
     
     // Reset statistics
     _totalNetworksFound = 0;
@@ -426,18 +600,23 @@ class NetworkProvider extends ChangeNotifier {
       
       final hasPermissions = await checkAndRequestPermissions();
       if (!hasPermissions) {
-        developer.log('Insufficient permissions for scanning, using mock data');
-        await _performRealisticScanWithProgress();
+        developer.log('⚠️ PRODUCTION: Insufficient permissions for scanning - no networks will be shown');
+        developer.log('⚠️ PRODUCTION: Please enable location and WiFi permissions to scan networks');
+        // Don't show mock data - this is production mode
+        _networks = [];
       } else if (_wifiScanningEnabled) {
         await _performRealWiFiScanWithProgress();
-      } else if (_firebaseEnabled && _currentWhitelist != null) {
-        await _performFirebaseEnhancedScanWithProgress();
       } else {
-        await _performRealisticScanWithProgress();
+        developer.log('⚠️ PRODUCTION: WiFi scanning not available - no networks will be shown');
+        developer.log('⚠️ PRODUCTION: Real WiFi scanning required for network detection');
+        _networks = [];
       }
 
       // Update networks with saved status first
       await _updateNetworksWithSavedStatus();
+      
+      // CRITICAL FIX: Sync with AccessPointService before applying statuses
+      await _syncWithAccessPointService();
       
       // Apply user-defined statuses after updating with saved status
       _applyUserDefinedStatuses();
@@ -457,17 +636,23 @@ class NetworkProvider extends ChangeNotifier {
       // Log scan event to Firebase Analytics
       await logScanEvent();
     } catch (e) {
-      developer.log('Error during network scan: $e');
-      await _performRealisticScanWithProgress();
-      await _updateNetworksWithSavedStatus();
-      _applyUserDefinedStatuses();
+      developer.log('❌ PRODUCTION: Error during network scan: $e');
+      developer.log('❌ PRODUCTION: No fallback data - scan failed');
+      // No mock data fallback in production mode
+      _networks = [];
       _calculateScanStatistics();
       _hasPerformedScan = true;
+      
+      // Record failed scan in history
+      await _recordScanInHistory(wasSuccessful: false, errorMessage: e.toString());
     }
 
     _isScanning = false;
     _isLoading = false;
     _scanProgress = 1.0;
+    
+    // Record scan in history
+    await _recordScanInHistory(wasSuccessful: true);
     
     // Ensure filtered networks are properly updated with current search query
     _updateFilteredNetworks();
@@ -518,7 +703,7 @@ class NetworkProvider extends ChangeNotifier {
       _networks = scannedNetworks;
       
       // Perform evil twin detection on real scan results
-      _performEvilTwinDetection();
+      await _performEvilTwinDetection();
       
       // Cross-reference with whitelist if available
       if (_firebaseEnabled && _currentWhitelist != null) {
@@ -552,13 +737,60 @@ class NetworkProvider extends ChangeNotifier {
 
   /// Cross-reference scanned networks with Firebase whitelist
   void _crossReferenceWithWhitelist() {
+    developer.log('🔍 WHITELIST DEBUG: Cross-referencing ${_networks.length} networks with whitelist');
+    developer.log('🔍 WHITELIST DEBUG: Whitelist available: ${_currentWhitelist != null}');
+    
+    if (_currentWhitelist != null) {
+      developer.log('🔍 WHITELIST DEBUG: Whitelist contains ${_currentWhitelist!.accessPoints.length} access points');
+      for (final ap in _currentWhitelist!.accessPoints.take(5)) {
+        developer.log('🔍 WHITELIST DEBUG: AP - SSID: "${ap.ssid}", MAC: "${ap.macAddress}", Status: "${ap.status}"');
+      }
+    }
+    
     for (int i = 0; i < _networks.length; i++) {
       final network = _networks[i];
-      if (isNetworkWhitelisted(network.macAddress)) {
+      developer.log('🔍 WHITELIST DEBUG: Checking network "${network.name}" (MAC: ${network.macAddress}, Current Status: ${network.status.name})');
+      
+      final isWhitelisted = isNetworkWhitelisted(network.macAddress);
+      developer.log('🔍 WHITELIST DEBUG: isNetworkWhitelisted(${network.macAddress}) = $isWhitelisted');
+      
+      if (isWhitelisted) {
+        // Don't override user-flagged networks - they should remain flagged even if whitelisted
+        if (_flaggedNetworkIds.contains(network.id)) {
+          developer.log('🚩 Network ${network.name} (${network.macAddress}) is whitelisted but user-flagged - keeping flagged status');
+          continue;
+        }
+        
+        // Don't override other user-managed statuses either
+        if (_blockedNetworkIds.contains(network.id) || _trustedNetworkIds.contains(network.id)) {
+          developer.log('👤 Network ${network.name} (${network.macAddress}) is whitelisted but user-managed - keeping user status');
+          continue;
+        }
+        
+        developer.log('✅ MARKING AS VERIFIED: Network ${network.name} (${network.macAddress}) - MAC address found in DICT whitelist');
         _networks[i] = network.copyWith(
           status: NetworkStatus.verified,
           description: '${network.description} (Verified via DICT whitelist)',
         );
+      } else {
+        // CRITICAL DEBUG: Check if network has same SSID as whitelist but different MAC
+        if (_currentWhitelist != null) {
+          final sameSSID = _currentWhitelist!.accessPoints.where(
+            (ap) => ap.ssid.toLowerCase() == network.name.toLowerCase() && ap.status == 'active'
+          ).toList();
+          
+          if (sameSSID.isNotEmpty) {
+            developer.log('⚠️ POTENTIAL EVIL TWIN: Network "${network.name}" (MAC: ${network.macAddress}) has same SSID as ${sameSSID.length} whitelist entries but different MAC:');
+            for (final ap in sameSSID) {
+              developer.log('   - Whitelist MAC: ${ap.macAddress} vs Scanned MAC: ${network.macAddress}');
+            }
+            
+            // This network should be flagged as suspicious, not verified
+            if (network.status != NetworkStatus.suspicious) {
+              developer.log('🚨 SHOULD BE FLAGGED: This network should be marked as suspicious (potential evil twin)');
+            }
+          }
+        }
       }
     }
   }
@@ -754,7 +986,7 @@ class NetworkProvider extends ChangeNotifier {
     ]);
     
     // Perform evil twin detection
-    _performEvilTwinDetection();
+    await _performEvilTwinDetection();
     
     // Generate alerts for suspicious networks and report them
     _generateAlertsForSuspiciousNetworks();
@@ -802,95 +1034,267 @@ class NetworkProvider extends ChangeNotifier {
   } */
 
 
-  List<NetworkModel> _generateEvilTwinNetworks() {
-    final DateTime now = DateTime.now();
-    return [
-      // Evil twin of DICT network
-      NetworkModel(
-        id: 'evil_1',
-        name: 'DICT-CALABARZON-FREE', // Suspicious variant
-        description: 'Suspicious network mimicking government WiFi',
-        status: NetworkStatus.suspicious,
-        securityType: SecurityType.open, // Red flag: open when original is secured
-        signalStrength: 95, // Suspiciously strong signal
-        macAddress: 'FF:FF:FF:FF:FF:FF', // Suspicious MAC
-        latitude: 14.2115, // Very close to legitimate network
-        longitude: 121.1642,
-        lastSeen: now.subtract(const Duration(minutes: 1)),
-      ),
-      // Evil twin of commercial network
-      NetworkModel(
-        id: 'evil_2',
-        name: 'SM_Free_WiFi', // Variant of SM_WiFi
-        description: 'Potentially malicious network',
-        status: NetworkStatus.suspicious,
-        securityType: SecurityType.open,
-        signalStrength: 85,
-        macAddress: 'AA:BB:CC:DD:EE:FF',
-        latitude: 14.2048,
-        longitude: 121.1578,
-        lastSeen: now.subtract(const Duration(minutes: 3)),
-      ),
-      // Generic evil twin
-      NetworkModel(
-        id: 'evil_3',
-        name: 'FREE_WiFi_CalambaCity',
-        description: 'Suspicious open network',
-        status: NetworkStatus.suspicious,
-        securityType: SecurityType.open,
-        signalStrength: 75,
-        macAddress: 'DE:AD:BE:EF:CA:FE',
-        latitude: 14.2100,
-        longitude: 121.1650,
-        lastSeen: now.subtract(const Duration(minutes: 2)),
-      ),
-    ];
-  }
+  // REMOVED: Evil twin generation for production - only real threats will be detected
 
-  void _performEvilTwinDetection() {
+  Future<void> _performEvilTwinDetection() async {
+    developer.log('🔍 EVIL TWIN DEBUG: Performing enhanced evil twin detection on ${_networks.length} real networks');
+    
     final Map<String, List<NetworkModel>> networkGroups = {};
     
-    // Group networks by similar names
+    // Group networks by similar names, but exclude hidden networks from evil twin detection
     for (var network in _networks) {
+      // CRITICAL FIX: Skip hidden networks to prevent false evil twin detection
+      if (network.name == 'Hidden Network') {
+        developer.log('🔍 EVIL TWIN DEBUG: Skipping hidden network (MAC: ${network.macAddress}) - hidden networks are not candidates for evil twin detection');
+        continue;
+      }
+      
       final normalizedName = _normalizeNetworkName(network.name);
       networkGroups.putIfAbsent(normalizedName, () => []).add(network);
+      developer.log('🔍 EVIL TWIN DEBUG: Network "${network.name}" normalized to "${normalizedName}" (MAC: ${network.macAddress}, Status: ${network.status.name})');
     }
     
-    // Detect potential evil twins
+    developer.log('🔍 EVIL TWIN DEBUG: Found ${networkGroups.length} unique network name groups');
+    
+    // Detect potential evil twins with enhanced validation
     for (var entry in networkGroups.entries) {
       if (entry.value.length > 1) {
         final networks = entry.value;
+        developer.log('🔍 EVIL TWIN DEBUG: Analyzing ${networks.length} networks with similar name: "${entry.key}"');
         
-        // Find the most legitimate network (secured, known MAC, etc.)
-        final legitimate = networks.firstWhere(
-          (n) => n.status == NetworkStatus.verified || 
-                 n.securityType != SecurityType.open,
-          orElse: () => networks.first,
-        );
+        // List all networks in this group
+        for (var network in networks) {
+          developer.log('   - "${network.name}" (MAC: ${network.macAddress}, Status: ${network.status.name}, Signal: ${network.signalStrength})');
+        }
         
-        // Mark others as suspicious if they don't match the legitimate one
+        // CRITICAL FIX: Enhanced legitimacy detection
+        final legitimate = _findLegitimateNetwork(networks);
+        developer.log('🔍 EVIL TWIN DEBUG: Selected "${legitimate.name}" (MAC: ${legitimate.macAddress}) as legitimate network');
+        
+        // Check each network against the legitimate one
         for (var network in networks) {
           if (network.id != legitimate.id) {
+            // CRITICAL FIX: Skip networks that are explicitly trusted by the user
+            if (_macToStatusMap[network.macAddress] == NetworkStatus.trusted || 
+                _trustedNetworkIds.contains(network.id)) {
+              developer.log('✅ EVIL TWIN DEBUG: Skipping trusted network ${network.name} (MAC: ${network.macAddress}) - user has explicitly trusted this network');
+              continue;
+            }
+            
+            var suspicionScore = _calculateSuspicionScore(network, legitimate);
+            developer.log('🔍 EVIL TWIN DEBUG: Suspicion score for ${network.name} (MAC: ${network.macAddress}): $suspicionScore');
+            
+            // CRITICAL: Check if this network has same SSID as whitelist but different MAC
+            bool hasWhitelistSSID = false;
+            if (_currentWhitelist != null) {
+              hasWhitelistSSID = _currentWhitelist!.accessPoints.any(
+                (ap) => ap.ssid.toLowerCase() == network.name.toLowerCase() && ap.status == 'active'
+              );
+              if (hasWhitelistSSID) {
+                developer.log('🚨 EVIL TWIN DEBUG: Network "${network.name}" has SAME SSID as whitelist entry but DIFFERENT MAC - CRITICAL THREAT!');
+                suspicionScore += 3; // Boost score for whitelist mimicking
+                developer.log('🚨 EVIL TWIN DEBUG: Boosted suspicion score to $suspicionScore for whitelist mimicking');
+              }
+            }
+            
+            // Only mark as suspicious if suspicion score is high enough
+            if (suspicionScore >= 3) { // Threshold for evil twin detection
+              final index = _networks.indexWhere((n) => n.id == network.id);
+              if (index != -1) {
+                _networks[index] = NetworkModel(
+                  id: network.id,
+                  name: network.name,
+                  description: hasWhitelistSSID 
+                    ? 'CRITICAL: Mimicking government network ${legitimate.name} (Score: $suspicionScore)'
+                    : 'Potential evil twin of ${legitimate.name} (Score: $suspicionScore)',
+                  status: NetworkStatus.suspicious,
+                  securityType: network.securityType,
+                  signalStrength: network.signalStrength,
+                  macAddress: network.macAddress,
+                  latitude: network.latitude,
+                  longitude: network.longitude,
+                  lastSeen: network.lastSeen,
+                  isConnected: network.isConnected,
+                );
+                developer.log('🚨 MARKED AS SUSPICIOUS: ${network.name} (MAC: ${network.macAddress}) - evil twin detected');
+                
+                // CRITICAL FIX: Apply auto-block if enabled
+                if (_settingsProvider != null) {
+                  await _settingsProvider!.applyAutoBlockToNetwork(_networks[index]);
+                }
+              }
+            } else {
+              developer.log('✅ PASSED VALIDATION: ${network.name} (MAC: ${network.macAddress}) with score $suspicionScore');
+            }
+          }
+        }
+      } else {
+        // Single network in group - check if it's mimicking whitelist
+        final network = entry.value.first;
+        
+        // CRITICAL FIX: Don't check hidden networks for whitelist mimicking
+        if (network.name == 'Hidden Network') {
+          developer.log('🔍 EVIL TWIN DEBUG: Skipping whitelist check for hidden network (MAC: ${network.macAddress})');
+          continue;
+        }
+        
+        // CRITICAL FIX: Skip networks that are explicitly trusted by the user
+        if (_macToStatusMap[network.macAddress] == NetworkStatus.trusted || 
+            _trustedNetworkIds.contains(network.id)) {
+          developer.log('✅ EVIL TWIN DEBUG: Skipping whitelist mimicking check for trusted network ${network.name} (MAC: ${network.macAddress}) - user has explicitly trusted this network');
+          continue;
+        }
+        
+        if (_currentWhitelist != null) {
+          final whitelistEntry = _currentWhitelist!.accessPoints.firstWhere(
+            (ap) => ap.ssid.toLowerCase() == network.name.toLowerCase() && ap.status == 'active',
+            orElse: () => AccessPointData(id: '', ssid: '', macAddress: '', latitude: 0, longitude: 0, region: '', province: '', city: '', signalStrength: {}, type: '', status: '', isVerified: false),
+          );
+          
+          if (whitelistEntry.id.isNotEmpty && whitelistEntry.macAddress.toLowerCase() != network.macAddress.toLowerCase()) {
+            developer.log('🚨 SINGLE NETWORK EVIL TWIN: "${network.name}" (MAC: ${network.macAddress}) mimicking whitelist MAC: ${whitelistEntry.macAddress}');
+            
             final index = _networks.indexWhere((n) => n.id == network.id);
             if (index != -1) {
-              _networks[index] = NetworkModel(
-                id: network.id,
-                name: network.name,
-                description: 'Potential evil twin of ${legitimate.name}',
+              _networks[index] = network.copyWith(
                 status: NetworkStatus.suspicious,
-                securityType: network.securityType,
-                signalStrength: network.signalStrength,
-                macAddress: network.macAddress,
-                latitude: network.latitude,
-                longitude: network.longitude,
-                lastSeen: network.lastSeen,
-                isConnected: network.isConnected,
+                description: 'CRITICAL: Mimicking government network "${network.name}" with different MAC address',
               );
+              developer.log('🚨 MARKED SINGLE MIMICKER AS SUSPICIOUS: ${network.name} (MAC: ${network.macAddress})');
+              
+              // CRITICAL FIX: Apply auto-block if enabled
+              if (_settingsProvider != null) {
+                await _settingsProvider!.applyAutoBlockToNetwork(_networks[index]);
+              }
             }
           }
         }
       }
     }
+  }
+
+  /// CRITICAL FIX: Enhanced method to find the most legitimate network
+  NetworkModel _findLegitimateNetwork(List<NetworkModel> networks) {
+    // Priority order for legitimacy:
+    // 1. Verified networks (highest priority)
+    // 2. Networks that are already trusted by user
+    // 3. Networks with stronger security (WPA3 > WPA2 > WEP > Open)
+    // 4. Networks with stronger signal strength
+    // 5. Networks that have been seen longer (older lastSeen)
+    
+    return networks.reduce((a, b) {
+      // Check verification status
+      if (a.status == NetworkStatus.verified && b.status != NetworkStatus.verified) {
+        return a;
+      }
+      if (b.status == NetworkStatus.verified && a.status != NetworkStatus.verified) {
+        return b;
+      }
+      
+      // Check if user has trusted the network
+      if (_macToStatusMap[a.macAddress] == NetworkStatus.trusted && 
+          _macToStatusMap[b.macAddress] != NetworkStatus.trusted) {
+        return a;
+      }
+      if (_macToStatusMap[b.macAddress] == NetworkStatus.trusted && 
+          _macToStatusMap[a.macAddress] != NetworkStatus.trusted) {
+        return b;
+      }
+      
+      // Compare security types (higher value = more secure)
+      final securityScoreA = _getSecurityScore(a.securityType);
+      final securityScoreB = _getSecurityScore(b.securityType);
+      if (securityScoreA != securityScoreB) {
+        return securityScoreA > securityScoreB ? a : b;
+      }
+      
+      // Compare signal strength
+      if (a.signalStrength != b.signalStrength) {
+        return a.signalStrength > b.signalStrength ? a : b;
+      }
+      
+      // Prefer network seen earlier (more established)
+      return a.lastSeen.isBefore(b.lastSeen) ? a : b;
+    });
+  }
+
+  /// Calculate suspicion score for potential evil twin
+  int _calculateSuspicionScore(NetworkModel suspect, NetworkModel legitimate) {
+    int score = 0;
+    
+    // CRITICAL FIX: Enhanced evil twin detection criteria
+    
+    // 1. Different MAC addresses with same SSID (+2 points)
+    if (suspect.macAddress != legitimate.macAddress) {
+      score += 2;
+      developer.log('   - Different MAC addresses: +2 points');
+    }
+    
+    // 2. Weaker security than legitimate (+2 points)
+    if (_getSecurityScore(suspect.securityType) < _getSecurityScore(legitimate.securityType)) {
+      score += 2;
+      developer.log('   - Weaker security: +2 points');
+    }
+    
+    // 3. Much weaker signal strength (+1 point) - might be farther away trying to mimic
+    if (suspect.signalStrength < legitimate.signalStrength - 30) {
+      score += 1;
+      developer.log('   - Much weaker signal: +1 point');
+    }
+    
+    // 4. Very similar signal strength (+1 point) - might be very close, trying to compete
+    if ((suspect.signalStrength - legitimate.signalStrength).abs() < 5) {
+      score += 1;
+      developer.log('   - Very similar signal strength: +1 point');
+    }
+    
+    // 5. Recently appeared compared to legitimate (+1 point)
+    if (suspect.lastSeen.isAfter(legitimate.lastSeen.add(const Duration(minutes: 5)))) {
+      score += 1;
+      developer.log('   - Recently appeared: +1 point');
+    }
+    
+    // 6. Location-based validation (if coordinates available)
+    if (suspect.latitude != null && suspect.longitude != null &&
+        legitimate.latitude != null && legitimate.longitude != null) {
+      final distance = _calculateDistance(
+        suspect.latitude!, suspect.longitude!,
+        legitimate.latitude!, legitimate.longitude!,
+      );
+      
+      // If networks are very close but have different MACs, suspicious (+1 point)
+      if (distance < 100 && suspect.macAddress != legitimate.macAddress) { // Within 100 meters
+        score += 1;
+        developer.log('   - Very close location with different MAC: +1 point');
+      }
+    }
+    
+    return score;
+  }
+  
+  /// Get security score for comparison (higher = more secure)
+  int _getSecurityScore(SecurityType type) {
+    switch (type) {
+      case SecurityType.wpa3: return 4;
+      case SecurityType.wpa2: return 3;
+      case SecurityType.wep: return 2;
+      case SecurityType.open: return 1;
+    }
+  }
+  
+  /// Calculate distance between two coordinates in meters
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const double earthRadius = 6371000; // Earth's radius in meters
+    final double lat1Rad = lat1 * (pi / 180);
+    final double lat2Rad = lat2 * (pi / 180);
+    final double deltaLat = (lat2 - lat1) * (pi / 180);
+    final double deltaLon = (lon2 - lon1) * (pi / 180);
+    
+    final double a = sin(deltaLat / 2) * sin(deltaLat / 2) +
+        cos(lat1Rad) * cos(lat2Rad) * sin(deltaLon / 2) * sin(deltaLon / 2);
+    final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    
+    return earthRadius * c;
   }
 
   String _normalizeNetworkName(String name) {
@@ -911,13 +1315,96 @@ class NetworkProvider extends ChangeNotifier {
   }
   
   void _updateFilteredNetworks() {
+    developer.log('🔍 _updateFilteredNetworks: Starting with ${_networks.length} total networks');
+    
+    // Debug: Show current network statuses
+    for (final network in _networks) {
+      developer.log('   - ${network.name} (${network.id}): ${network.status.name}');
+    }
+    
+    List<NetworkModel> networksToFilter;
+    
     if (_searchQuery.isEmpty) {
-      _filteredNetworks = List.from(_networks);
+      networksToFilter = List.from(_networks);
     } else {
-      _filteredNetworks = _networks.where((network) {
+      networksToFilter = _networks.where((network) {
         return network.name.toLowerCase().contains(_searchQuery) ||
             (network.description?.toLowerCase().contains(_searchQuery) ?? false);
       }).toList();
+    }
+    
+    developer.log('🔍 After search filter: ${networksToFilter.length} networks');
+    
+    // CRITICAL FIX: Filter out blocked networks from display
+    final originalCount = networksToFilter.length;
+    final blockedNetworks = <NetworkModel>[];
+    
+    networksToFilter = networksToFilter.where((network) {
+      final isBlocked = network.status == NetworkStatus.blocked;
+      final isBlockedByUser = _blockedNetworkIds.contains(network.id);
+      if (isBlocked || isBlockedByUser) {
+        blockedNetworks.add(network);
+        developer.log('🚫 FILTERING OUT blocked network: ${network.name} (${network.id})');
+        developer.log('   - network.status: ${network.status.name}');
+        developer.log('   - isBlocked: $isBlocked');
+        developer.log('   - isBlockedByUser: $isBlockedByUser');
+        developer.log('   - _blockedNetworkIds contains ${network.id}: ${_blockedNetworkIds.contains(network.id)}');
+      }
+      return !isBlocked && !isBlockedByUser;
+    }).toList();
+    
+    final blockedCount = originalCount - networksToFilter.length;
+    if (blockedCount > 0) {
+      developer.log('🚫 Filtered out $blockedCount blocked networks from nearby networks display');
+      developer.log('🚫 Blocked networks: ${blockedNetworks.map((n) => '${n.name} (${n.status.name})').join(', ')}');
+    } else {
+      developer.log('✅ No blocked networks found to filter');
+    }
+    
+    // CRITICAL FIX: Sort networks by safety level (safest to suspicious)
+    networksToFilter.sort((a, b) {
+      final priorityA = _getNetworkSafetyPriority(a.status);
+      final priorityB = _getNetworkSafetyPriority(b.status);
+      
+      // Sort by safety priority first (lower number = safer = shown first)
+      int result = priorityA.compareTo(priorityB);
+      if (result != 0) return result;
+      
+      // If same safety level, sort by signal strength (stronger first)
+      result = b.signalStrength.compareTo(a.signalStrength);
+      if (result != 0) return result;
+      
+      // If same signal strength, sort alphabetically by name
+      return a.name.compareTo(b.name);
+    });
+    
+    _filteredNetworks = networksToFilter;
+    
+    // Log the sorting order for debugging
+    developer.log('🔍 Final filtered networks count: ${_filteredNetworks.length}');
+    if (_filteredNetworks.isNotEmpty) {
+      developer.log('📶 Networks sorted by safety: ${_filteredNetworks.map((n) => '${n.name}(${n.status.name})').join(', ')}');
+    }
+    developer.log('🔍 All blocked network IDs: ${_blockedNetworkIds.toList()}');
+    
+    // Verify no blocked networks made it through
+    final blockedInFiltered = _filteredNetworks.where((n) => n.status == NetworkStatus.blocked || _blockedNetworkIds.contains(n.id)).toList();
+    if (blockedInFiltered.isNotEmpty) {
+      developer.log('❌ ERROR: Blocked networks found in filtered list: ${blockedInFiltered.map((n) => '${n.name} (${n.id})').join(', ')}');
+    } else {
+      developer.log('✅ SUCCESS: No blocked networks in filtered list');
+    }
+  }
+  
+  /// Get safety priority for sorting (lower number = safer = shown first)
+  int _getNetworkSafetyPriority(NetworkStatus status) {
+    switch (status) {
+      case NetworkStatus.trusted:    return 1; // Safest - show first
+      case NetworkStatus.verified:   return 2; // Very safe
+      case NetworkStatus.unknown:    return 3; // Neutral
+      case NetworkStatus.flagged:    return 4; // User-marked suspicious
+      case NetworkStatus.suspicious: return 5; // System-detected threats
+      case NetworkStatus.blocked:    return 99; // Should never appear (filtered out above)
     }
   }
   
@@ -1020,15 +1507,78 @@ class NetworkProvider extends ChangeNotifier {
       final blockedAPs = await _accessPointService.getBlockedAccessPoints();
       final flaggedAPs = await _accessPointService.getFlaggedAccessPoints();
       
-      developer.log('AccessPointService Trusted: ${trustedAPs.map((n) => n.name).join(', ')}');
-      developer.log('AccessPointService Blocked: ${blockedAPs.map((n) => n.name).join(', ')}');
-      developer.log('AccessPointService Flagged: ${flaggedAPs.map((n) => n.name).join(', ')}');
+      developer.log('AccessPointService Trusted: ${trustedAPs.map((n) => '${n.name}(${n.macAddress})').join(', ')}');
+      developer.log('AccessPointService Blocked: ${blockedAPs.map((n) => '${n.name}(${n.macAddress})').join(', ')}');
+      developer.log('AccessPointService Flagged: ${flaggedAPs.map((n) => '${n.name}(${n.macAddress})').join(', ')}');
+      
+      developer.log('NetworkProvider MAC-to-Status Map: ${_macToStatusMap.entries.map((e) => '${e.key}:${e.value.name}').join(', ')}');
+      
+      // Check for synchronization between current networks and AccessPointService
+      for (final network in _networks) {
+        final accessPointStatus = _macToStatusMap[network.macAddress];
+        if (accessPointStatus != null && accessPointStatus != network.status) {
+          developer.log('⚠️ SYNC ISSUE: Network ${network.name} (${network.macAddress}) - NetworkProvider: ${network.status.name}, AccessPointService: $accessPointStatus.name');
+        }
+      }
+      
       developer.log('=====================================');
     } catch (e) {
       developer.log('Error checking AccessPointService sync: $e');
     }
   }
+  
+  /// Force synchronization with AccessPointService (for testing)
+  Future<void> forceSyncWithAccessPointService() async {
+    developer.log('🔄 Force synchronizing with AccessPointService...');
+    await _syncWithAccessPointService();
+    _applyUserDefinedStatuses();
+    _updateFilteredNetworks();
+    notifyListeners();
+    developer.log('✅ Force synchronization completed');
+  }
 
+  /// Clean up false positive suspicious status for hidden networks and trusted networks
+  void cleanupHiddenNetworkStatuses() {
+    developer.log('🧹 Checking for networks with incorrect suspicious status...');
+    
+    bool hasChanges = false;
+    
+    for (int i = 0; i < _networks.length; i++) {
+      final network = _networks[i];
+      
+      // Fix hidden networks marked as suspicious
+      if (network.name == 'Hidden Network' && network.status == NetworkStatus.suspicious) {
+        developer.log('🧹 Fixing hidden network (MAC: ${network.macAddress}) - changing from suspicious to unknown');
+        _networks[i] = network.copyWith(
+          status: NetworkStatus.unknown,
+          description: 'Hidden network - SSID not broadcast',
+        );
+        hasChanges = true;
+      }
+      
+      // CRITICAL FIX: Fix trusted networks that were incorrectly marked as suspicious
+      if (network.status == NetworkStatus.suspicious && 
+          (_macToStatusMap[network.macAddress] == NetworkStatus.trusted || 
+           _trustedNetworkIds.contains(network.id))) {
+        developer.log('🧹 CRITICAL FIX: Restoring trusted network ${network.name} (MAC: ${network.macAddress}) - changing from suspicious to trusted');
+        _networks[i] = network.copyWith(
+          status: NetworkStatus.trusted,
+          description: 'Trusted network - verified by user',
+          isUserManaged: true,
+          lastActionDate: DateTime.now(),
+        );
+        hasChanges = true;
+      }
+    }
+    
+    if (hasChanges) {
+      developer.log('✅ Fixed incorrect suspicious status for networks');
+      _updateFilteredNetworks();
+      notifyListeners();
+    } else {
+      developer.log('✅ No networks with incorrect suspicious status found');
+    }
+  }
 
   /// Trust a network - mark it as safe and allow direct connection
   Future<void> trustNetwork(String networkId) async {
@@ -1050,7 +1600,7 @@ class NetworkProvider extends ChangeNotifier {
     
     // Generate alert for trusted network
     if (_alertProvider != null) {
-      _alertProvider!.generateTrustedNetworkAlert(network);
+      _alertProvider!.generateTrustedNetworkAlert(network, scanSessionId: _scanSessionId);
     }
     
     // Sync with AccessPointService
@@ -1062,6 +1612,10 @@ class NetworkProvider extends ChangeNotifier {
     
     await _saveUserPreferences();
     _applyUserDefinedStatuses();
+    
+    // CRITICAL FIX: Clean up any incorrect suspicious status for this now-trusted network
+    cleanupHiddenNetworkStatuses();
+    
     notifyListeners();
     
     // Force refresh of filtered networks to ensure all tabs update
@@ -1086,7 +1640,7 @@ class NetworkProvider extends ChangeNotifier {
     
     // Generate alert for flagged network
     if (_alertProvider != null) {
-      _alertProvider!.generateFlaggedNetworkAlert(network);
+      _alertProvider!.generateFlaggedNetworkAlert(network, scanSessionId: _scanSessionId);
     }
     
     // Sync with AccessPointService
@@ -1098,11 +1652,19 @@ class NetworkProvider extends ChangeNotifier {
     
     await _saveUserPreferences();
     _applyUserDefinedStatuses();
+    
+    // CRITICAL FIX: Update filtered networks to reflect flagged status in sorting
+    _updateFilteredNetworks();
+    
     notifyListeners();
+    
+    developer.log('🚩 Flagged network ${network.name} ($networkId) - moved to suspicious section');
   }
 
   /// Block a network - hide it from all lists and prevent connection
   Future<void> blockNetwork(String networkId) async {
+    developer.log('🚫 blockNetwork called for networkId: $networkId');
+    
     final network = _networks.firstWhere((n) => n.id == networkId, orElse: () => NetworkModel(
       id: networkId,
       name: 'Unknown Network',
@@ -1114,13 +1676,19 @@ class NetworkProvider extends ChangeNotifier {
       lastSeen: DateTime.now(),
     ));
     
+    developer.log('🚫 Found network to block: ${network.name} (${network.id})');
+    developer.log('🚫 Current network status: ${network.status.name}');
+    developer.log('🚫 _blockedNetworkIds BEFORE: ${_blockedNetworkIds.toList()}');
+    
     _blockedNetworkIds.add(networkId);
     _trustedNetworkIds.remove(networkId);
     _flaggedNetworkIds.remove(networkId);
     
+    developer.log('🚫 _blockedNetworkIds AFTER: ${_blockedNetworkIds.toList()}');
+    
     // Generate alert for blocked network
     if (_alertProvider != null) {
-      _alertProvider!.generateBlockedNetworkAlert(network);
+      _alertProvider!.generateBlockedNetworkAlert(network, scanSessionId: _scanSessionId);
     }
     
     // Sync with AccessPointService
@@ -1131,8 +1699,20 @@ class NetworkProvider extends ChangeNotifier {
     }
     
     await _saveUserPreferences();
+    
+    developer.log('🚫 BEFORE _applyUserDefinedStatuses: Network ${network.name} status: ${network.status.name}');
     _applyUserDefinedStatuses();
+    
+    // Check if the network status was properly updated
+    final updatedNetwork = _networks.firstWhere((n) => n.id == networkId, orElse: () => network);
+    developer.log('🚫 AFTER _applyUserDefinedStatuses: Network ${updatedNetwork.name} status: ${updatedNetwork.status.name}');
+    
+    // CRITICAL FIX: Update filtered networks to immediately hide blocked network
+    _updateFilteredNetworks();
+    
     notifyListeners();
+    
+    developer.log('🚫 Blocked network ${network.name} ($networkId) - should be removed from display');
   }
 
   /// Remove trust from a network
@@ -1151,6 +1731,11 @@ class NetworkProvider extends ChangeNotifier {
       lastSeen: DateTime.now(),
     ));
     
+    // CRITICAL FIX: Remove MAC-based status immediately to prevent re-trusting
+    final removedStatus = _macToStatusMap.remove(network.macAddress);
+    developer.log('🗑️ Removed MAC-based trusted status for ${network.macAddress}: ${removedStatus?.name ?? 'none'}');
+    developer.log('📊 Remaining MAC statuses: ${_macToStatusMap.length} entries');
+    
     // Sync with AccessPointService
     try {
       await _accessPointService.untrustAccessPoint(network);
@@ -1159,8 +1744,22 @@ class NetworkProvider extends ChangeNotifier {
     }
     
     await _saveUserPreferences();
-    _applyUserDefinedStatuses();
+    
+    // CRITICAL FIX: Remove untrusted network from current networks list to force fresh evaluation
+    // This ensures that if trust was masking suspicious behavior, it will be re-detected
+    _networks.removeWhere((n) => n.id == networkId);
+    developer.log('🔄 REMOVED FROM SCAN: ${network.name} removed from current networks - will reappear after fresh scan with proper security evaluation');
+    
+    // Clean up original status entry since it will be re-evaluated
+    _originalStatuses.remove(networkId);
+    developer.log('🧹 Cleaned up original status entry for fresh evaluation');
+    
+    // Update filtered networks to reflect removal
+    _updateFilteredNetworks();
+    
     notifyListeners();
+    
+    developer.log('🔓 Untrusted network ${network.name} ($networkId) - removed from nearby networks, will reappear after next scan');
   }
 
   /// Remove flag from a network
@@ -1179,6 +1778,11 @@ class NetworkProvider extends ChangeNotifier {
       lastSeen: DateTime.now(),
     ));
     
+    // CRITICAL FIX: Remove MAC-based status immediately to prevent re-flagging
+    final removedStatus = _macToStatusMap.remove(network.macAddress);
+    developer.log('🗑️ Removed MAC-based flagged status for ${network.macAddress}: ${removedStatus?.name ?? 'none'}');
+    developer.log('📊 Remaining MAC statuses: ${_macToStatusMap.length} entries');
+    
     // Sync with AccessPointService
     try {
       await _accessPointService.unflagAccessPoint(network);
@@ -1187,8 +1791,71 @@ class NetworkProvider extends ChangeNotifier {
     }
     
     await _saveUserPreferences();
+    
+    // CRITICAL FIX: Force restore to natural status immediately
+    _forceRestoreNaturalStatus(networkId, network);
+    
     _applyUserDefinedStatuses();
+    
+    // CRITICAL FIX: Update filtered networks to reflect restored natural status
+    _updateFilteredNetworks();
+    
     notifyListeners();
+    
+    developer.log('🏃 Unflagged network ${network.name} ($networkId) - restored to natural status');
+  }
+
+  /// Force restore network to its natural status after user removal
+  /// Used for flagged networks which remain visible but need status restoration
+  /// (Blocked/trusted networks are removed entirely and reappear after fresh scan)
+  void _forceRestoreNaturalStatus(String networkId, NetworkModel network) {
+    final originalStatus = _originalStatuses[networkId];
+    final networkIndex = _networks.indexWhere((n) => n.id == networkId);
+    
+    if (networkIndex != -1) {
+      if (originalStatus != null) {
+        // Restore to documented original status
+        _networks[networkIndex] = _networks[networkIndex].copyWith(
+          status: originalStatus,
+          isUserManaged: false,
+          lastActionDate: null,
+          description: 'Network restored to original status',
+        );
+        developer.log('🔄 IMMEDIATE RESTORE: ${network.name} restored to original status: ${originalStatus.name}');
+        
+        // Clean up original status since network is no longer user-managed
+        _originalStatuses.remove(networkId);
+        developer.log('🧹 Cleaned up original status entry for ${network.name}');
+      } else {
+        // No original status recorded, determine natural status based on security analysis
+        NetworkStatus naturalStatus = NetworkStatus.unknown; // Default fallback
+        
+        // Check if it's a verified government network
+        if (_currentWhitelist != null) {
+          final whitelistEntry = _currentWhitelist!.accessPoints.firstWhere(
+            (ap) => ap.macAddress.toLowerCase() == network.macAddress.toLowerCase() && ap.status == 'active',
+            orElse: () => AccessPointData(id: '', ssid: '', macAddress: '', latitude: 0, longitude: 0, region: '', province: '', city: '', signalStrength: {}, type: '', status: '', isVerified: false),
+          );
+          if (whitelistEntry.id.isNotEmpty) {
+            naturalStatus = NetworkStatus.verified;
+          }
+        }
+        
+        _networks[networkIndex] = _networks[networkIndex].copyWith(
+          status: naturalStatus,
+          isUserManaged: false,
+          lastActionDate: null,
+          description: naturalStatus == NetworkStatus.verified ? 'Government verified network' : 'Network status determined by security analysis',
+        );
+        developer.log('🔄 NATURAL STATUS: ${network.name} set to natural status: ${naturalStatus.name}');
+        
+        // Re-evaluate security status if network is set to unknown
+        if (naturalStatus == NetworkStatus.unknown) {
+          developer.log('🔍 Re-evaluating security status for newly unmanaged network: ${network.name}');
+          // The evil twin detection and security analysis will run during the next _applyUserDefinedStatuses call
+        }
+      }
+    }
   }
 
   /// Unblock a network
@@ -1207,6 +1874,11 @@ class NetworkProvider extends ChangeNotifier {
       lastSeen: DateTime.now(),
     ));
     
+    // CRITICAL FIX: Remove MAC-based status immediately to prevent re-blocking
+    final removedStatus = _macToStatusMap.remove(network.macAddress);
+    developer.log('🗑️ Removed MAC-based status for ${network.macAddress}: ${removedStatus?.name ?? 'none'}');
+    developer.log('📊 Remaining MAC statuses: ${_macToStatusMap.length} entries');
+    
     // Sync with AccessPointService
     try {
       await _accessPointService.unblockAccessPoint(network);
@@ -1215,8 +1887,21 @@ class NetworkProvider extends ChangeNotifier {
     }
     
     await _saveUserPreferences();
-    _applyUserDefinedStatuses();
+    
+    // CRITICAL FIX: Remove unblocked network from current networks list to force fresh evaluation
+    _networks.removeWhere((n) => n.id == networkId);
+    developer.log('🔄 REMOVED FROM SCAN: ${network.name} removed from current networks - will reappear after fresh scan with proper security evaluation');
+    
+    // Clean up original status entry since it will be re-evaluated
+    _originalStatuses.remove(networkId);
+    developer.log('🧹 Cleaned up original status entry for fresh evaluation');
+    
+    // Update filtered networks to reflect removal
+    _updateFilteredNetworks();
+    
     notifyListeners();
+    
+    developer.log('✅ Unblocked network ${network.name} ($networkId) - removed from nearby networks, will reappear after next scan');
   }
 
   Future<void> connectToNetwork(String networkId) async {
@@ -1338,6 +2023,9 @@ class NetworkProvider extends ChangeNotifier {
       _suspiciousNetworksFound = 0;
       _threatsDetected = 0;
       
+      // Clear scan history
+      await _scanHistoryService.clearHistory();
+      
       // Save cleared state
       await _saveUserPreferences();
       
@@ -1346,6 +2034,18 @@ class NetworkProvider extends ChangeNotifier {
     } catch (e) {
       developer.log('Error clearing network data: $e');
       throw Exception('Failed to clear network data: $e');
+    }
+  }
+
+  /// Clear scan history only (not all network data)
+  Future<void> clearScanHistory() async {
+    try {
+      await _scanHistoryService.clearHistory();
+      notifyListeners();
+      developer.log('Scan history cleared successfully');
+    } catch (e) {
+      developer.log('Error clearing scan history: $e');
+      throw Exception('Failed to clear scan history: $e');
     }
   }
 
@@ -1366,6 +2066,11 @@ class NetworkProvider extends ChangeNotifier {
   void _applyUserDefinedStatuses() {
     bool hasChanges = false;
     
+    developer.log('🔧 _applyUserDefinedStatuses: Blocked network IDs: ${_blockedNetworkIds.toList()}');
+    developer.log('🔧 _applyUserDefinedStatuses: Trusted network IDs: ${_trustedNetworkIds.toList()}');
+    developer.log('🔧 _applyUserDefinedStatuses: Flagged network IDs: ${_flaggedNetworkIds.toList()}');
+    developer.log('🔧 _applyUserDefinedStatuses: MAC-based statuses: ${_macToStatusMap.length} entries');
+    
     for (int i = 0; i < _networks.length; i++) {
       final network = _networks[i];
       
@@ -1377,10 +2082,37 @@ class NetworkProvider extends ChangeNotifier {
       NetworkStatus newStatus;
       bool isUserManaged = false;
       
-      // Check if this network has user-defined status overrides
-      if (_blockedNetworkIds.contains(network.id)) {
+      // CRITICAL FIX: Check MAC-based status first (AccessPointService sync)
+      final macBasedStatus = _macToStatusMap[network.macAddress];
+      if (macBasedStatus != null) {
+        newStatus = macBasedStatus;
+        isUserManaged = true;
+        developer.log('🔄 _applyUserDefinedStatuses: Setting ${network.name} (MAC: ${network.macAddress}) to ${macBasedStatus.name} from AccessPointService');
+        
+        // Sync the network ID to the appropriate set for consistency
+        switch (macBasedStatus) {
+          case NetworkStatus.blocked:
+            _blockedNetworkIds.add(network.id);
+            _trustedNetworkIds.remove(network.id);
+            _flaggedNetworkIds.remove(network.id);
+            break;
+          case NetworkStatus.trusted:
+            _trustedNetworkIds.add(network.id);
+            _blockedNetworkIds.remove(network.id);
+            _flaggedNetworkIds.remove(network.id);
+            break;
+          case NetworkStatus.flagged:
+            _flaggedNetworkIds.add(network.id);
+            _blockedNetworkIds.remove(network.id);
+            _trustedNetworkIds.remove(network.id);
+            break;
+          default:
+            break;
+        }
+      } else if (_blockedNetworkIds.contains(network.id)) {
         newStatus = NetworkStatus.blocked;
         isUserManaged = true;
+        developer.log('🚫 _applyUserDefinedStatuses: Setting ${network.name} (${network.id}) to BLOCKED status');
       } else if (_trustedNetworkIds.contains(network.id)) {
         newStatus = NetworkStatus.trusted;
         isUserManaged = true;
@@ -1462,8 +2194,45 @@ class NetworkProvider extends ChangeNotifier {
           }
         }
       }
+      
+      developer.log('📚 Loaded user preferences: ${_trustedNetworkIds.length} trusted, ${_blockedNetworkIds.length} blocked, ${_flaggedNetworkIds.length} flagged');
     } catch (e) {
       developer.log('Error loading user preferences: $e');
+    }
+  }
+
+  /// CRITICAL FIX: Synchronize with AccessPointService to load MAC-based network statuses
+  Future<void> _syncWithAccessPointService() async {
+    try {
+      developer.log('🔄 Starting AccessPointService synchronization...');
+      
+      // Load all access points from AccessPointService
+      final trustedAPs = await _accessPointService.getTrustedAccessPoints();
+      final blockedAPs = await _accessPointService.getBlockedAccessPoints();
+      final flaggedAPs = await _accessPointService.getFlaggedAccessPoints();
+      
+      developer.log('🔄 AccessPointService loaded: ${trustedAPs.length} trusted, ${blockedAPs.length} blocked, ${flaggedAPs.length} flagged');
+      
+      // Create MAC address to network status mapping for fast lookup
+      final macToStatusMap = <String, NetworkStatus>{};
+      
+      for (final ap in trustedAPs) {
+        macToStatusMap[ap.macAddress] = NetworkStatus.trusted;
+      }
+      for (final ap in blockedAPs) {
+        macToStatusMap[ap.macAddress] = NetworkStatus.blocked;
+      }
+      for (final ap in flaggedAPs) {
+        macToStatusMap[ap.macAddress] = NetworkStatus.flagged;
+      }
+      
+      // Store MAC-based statuses for use during network scanning
+      _macToStatusMap = macToStatusMap;
+      
+      developer.log('✅ AccessPointService synchronization completed: ${macToStatusMap.length} total MAC-based network statuses loaded');
+      
+    } catch (e) {
+      developer.log('❌ Error synchronizing with AccessPointService: $e');
     }
   }
 
@@ -1495,173 +2264,8 @@ class NetworkProvider extends ChangeNotifier {
     }
   }
   
-  /// Add verified government networks
-  Future<void> _addVerifiedGovernmentNetworks() async {
-    _networks.addAll([
-      NetworkModel(
-        id: 'gov_1',
-        name: 'DICT-CALABARZON-OFFICIAL',
-        description: 'DICT Public Access Point',
-        status: NetworkStatus.verified,
-        securityType: SecurityType.wpa2,
-        signalStrength: 85,
-        macAddress: '00:1A:2B:3C:4D:5E',
-        latitude: 14.2117,
-        longitude: 121.1644,
-        lastSeen: DateTime.now(),
-        isConnected: true,
-      ),
-      NetworkModel(
-        id: 'gov_2',
-        name: 'GOV-PH-SECURE',
-        description: 'Government Network',
-        status: NetworkStatus.verified,
-        securityType: SecurityType.wpa3,
-        signalStrength: 78,
-        macAddress: '00:1A:2B:3C:4D:5F',
-        latitude: 14.2120,
-        longitude: 121.1650,
-        lastSeen: DateTime.now(),
-      ),
-    ]);
-  }
-  
-  /// Add commercial networks
-  Future<void> _addCommercialNetworks() async {
-    _networks.addAll([
-      NetworkModel(
-        id: 'commercial_1',
-        name: 'SM_WiFi',
-        description: 'SM Calamba',
-        status: NetworkStatus.verified,
-        securityType: SecurityType.wpa2,
-        signalStrength: 60,
-        macAddress: 'A1:B2:C3:D4:E5:F6',
-        latitude: 14.2050,
-        longitude: 121.1580,
-        lastSeen: DateTime.now().subtract(const Duration(minutes: 5)),
-      ),
-      NetworkModel(
-        id: 'commercial_2',
-        name: 'PLDT_HomeWiFi_5G',
-        description: 'Private Network',
-        status: NetworkStatus.verified,
-        securityType: SecurityType.wpa3,
-        signalStrength: 90,
-        macAddress: '11:22:33:44:55:66',
-        latitude: 14.2080,
-        longitude: 121.1600,
-        lastSeen: DateTime.now(),
-      ),
-    ]);
-  }
-  
-  /// Add suspicious networks (evil twins)
-  Future<void> _addSuspiciousNetworks() async {
-    final suspiciousNetworks = _generateEvilTwinNetworks();
-    _networks.addAll(suspiciousNetworks);
-    _performEvilTwinDetection();
-  }
-  
-  /// Add unknown networks
-  Future<void> _addUnknownNetworks() async {
-    _networks.addAll([
-      NetworkModel(
-        id: 'unknown_1',
-        name: 'Coffee_Shop_WiFi',
-        description: 'Unknown location',
-        status: NetworkStatus.unknown,
-        securityType: SecurityType.open,
-        signalStrength: 45,
-        macAddress: 'B1:C2:D3:E4:F5:A6',
-        latitude: 14.2090,
-        longitude: 121.1610,
-        lastSeen: DateTime.now(),
-      ),
-      NetworkModel(
-        id: 'unknown_2',
-        name: 'Guest_Network',
-        description: 'Unknown network',
-        status: NetworkStatus.unknown,
-        securityType: SecurityType.wep,
-        signalStrength: 55,
-        macAddress: 'C1:D2:E3:F4:A5:B6',
-        latitude: 14.2070,
-        longitude: 121.1590,
-        lastSeen: DateTime.now(),
-      ),
-    ]);
-  }
-  
-  /// Perform realistic scan with progress tracking
-  Future<void> _performRealisticScanWithProgress() async {
-    _networks.clear();
-    notifyListeners();
-    
-    final scanSteps = [
-      () => _addVerifiedGovernmentNetworks(),
-      () => _addCommercialNetworks(), 
-      () => _addSuspiciousNetworks(),
-      () => _addUnknownNetworks(),
-    ];
-    
-    for (int i = 0; i < scanSteps.length; i++) {
-      await scanSteps[i]();
-      _scanProgress = (i + 1) / scanSteps.length;
-      notifyListeners();
-      await Future.delayed(const Duration(milliseconds: 800));
-    }
-  }
-  
-  /// Perform Firebase-enhanced scan with progress tracking
-  Future<void> _performFirebaseEnhancedScanWithProgress() async {
-    _networks.clear();
-    notifyListeners();
-    
-    // Step 1: Add verified networks from Firebase whitelist
-    _scanProgress = 0.25;
-    if (_currentWhitelist != null) {
-      final nearbyWhitelistedAPs = _currentWhitelist!.accessPoints
-          .where((ap) => ap.status == 'active')
-          .take(3)
-          .toList();
-      
-      for (final ap in nearbyWhitelistedAPs) {
-        _networks.add(NetworkModel(
-          id: 'whitelist_${ap.id}',
-          name: ap.ssid,
-          description: 'DICT Verified Access Point - ${ap.city}, ${ap.province}',
-          status: NetworkStatus.verified,
-          securityType: SecurityType.wpa2,
-          signalStrength: 75 + (ap.ssid.hashCode % 20),
-          macAddress: ap.macAddress,
-          latitude: ap.latitude,
-          longitude: ap.longitude,
-          lastSeen: DateTime.now(),
-          isConnected: ap.ssid == 'DICT-CALABARZON-OFFICIAL',
-        ));
-      }
-    }
-    notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 800));
-    
-    // Step 2: Add commercial networks
-    _scanProgress = 0.5;
-    await _addCommercialNetworks();
-    notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 800));
-    
-    // Step 3: Add suspicious networks with Firebase verification
-    _scanProgress = 0.75;
-    await _addSuspiciousNetworks();
-    notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 800));
-    
-    // Step 4: Add unknown networks
-    _scanProgress = 1.0;
-    await _addUnknownNetworks();
-    notifyListeners();
-  }
+  // REMOVED: All mock data generation methods for production
+  // The app now only shows real WiFi networks detected by the device
   
   /// Perform real Wi-Fi scan with progress tracking
   Future<void> _performRealWiFiScanWithProgress() async {
@@ -1687,7 +2291,7 @@ class NetworkProvider extends ChangeNotifier {
       
       // Step 4: Threat detection
       _scanProgress = 0.8;
-      _performEvilTwinDetection();
+      await _performEvilTwinDetection();
       notifyListeners();
       
       // Step 5: Cross-reference with whitelist
@@ -1704,8 +2308,10 @@ class NetworkProvider extends ChangeNotifier {
       developer.log('Real Wi-Fi scan completed: ${_networks.length} networks found');
       
     } catch (e) {
-      developer.log('Real Wi-Fi scan failed: $e');
-      await _performRealisticScanWithProgress();
+      developer.log('❌ PRODUCTION: Real Wi-Fi scan failed: $e');
+      developer.log('❌ PRODUCTION: No networks will be shown - scan failed');
+      // No fallback to mock data in production
+      _networks = [];
     }
   }
   
@@ -1719,24 +2325,62 @@ class NetworkProvider extends ChangeNotifier {
   
   /// Generate real-time alerts based on scan results
   Future<void> _generateScanBasedAlerts() async {
-    if (_alertProvider == null) return;
+    if (_alertProvider == null) {
+      developer.log('⚠️ Alert provider not available for alert generation');
+      return;
+    }
     
-    // Generate alerts for newly detected threats (only if not already alerted)
+    developer.log('🔍 Starting alert generation for ${_networks.length} networks');
+    
+    // Generate alerts for detected threats (AlertProvider handles all deduplication)
     final newThreats = <NetworkModel>[];
+    int suspiciousCount = 0;
+    int flaggedCount = 0;
+    
     for (var network in _networks) {
-      if (network.status == NetworkStatus.suspicious) {
+      // Generate alerts for both suspicious and flagged networks
+      if (network.status == NetworkStatus.suspicious || network.status == NetworkStatus.flagged) {
+        if (network.status == NetworkStatus.suspicious) {
+          suspiciousCount++;
+        } else if (network.status == NetworkStatus.flagged) {
+          flaggedCount++;
+        }
+        
+        developer.log('🚨 Processing ${network.status.name} network: ${network.name} (${network.macAddress})');
+        
+        // For flagged networks, create a suspicious version for alert generation
+        final alertNetwork = network.status == NetworkStatus.flagged 
+          ? NetworkModel(
+              id: network.id,
+              name: network.name,
+              description: 'User-flagged suspicious network: ${network.name}',
+              status: NetworkStatus.suspicious, // Convert to suspicious for alert
+              securityType: network.securityType,
+              signalStrength: network.signalStrength,
+              macAddress: network.macAddress,
+              latitude: network.latitude,
+              longitude: network.longitude,
+              lastSeen: network.lastSeen,
+            )
+          : network;
+        
+        // Let AlertProvider handle all deduplication logic - it will update existing alerts if they exist
+        _alertProvider!.generateAlertForNetwork(alertNetwork, scanSessionId: _scanSessionId);
+        
+        // Track for session statistics only (not for deduplication)
         final networkKey = '${network.name}_${network.macAddress}';
         if (!_alertedNetworksThisSession.contains(networkKey)) {
-          _alertProvider!.generateAlertForNetwork(network);
           _alertedNetworksThisSession.add(networkKey);
-          newThreats.add(network);
+          newThreats.add(network); // Only count as "new" for this session
         }
       }
     }
     
+    developer.log('🔍 Alert generation complete: ${suspiciousCount} suspicious, ${flaggedCount} flagged networks processed');
+    
     // Generate summary alert only for manual scans
     if (_hasPerformedScan && _lastScanTime != null && _isManualScan) {
-      _alertProvider!.generateScanSummaryAlert(_totalNetworksFound, _threatsDetected, _lastScanTime!);
+      _alertProvider!.generateScanSummaryAlert(_totalNetworksFound, _threatsDetected, _lastScanTime!, scanSessionId: _scanSessionId);
     }
     
     // If we found new threats in this scan, show an immediate notification
@@ -1746,4 +2390,199 @@ class NetworkProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+
+
+  /// Apply security assessment results to mark networks as suspicious/threats
+  void _applySecurityAssessmentToNetworks(SecurityAssessment assessment) {
+    try {
+      // Find the network that matches this assessment
+      final networkIndex = _networks.indexWhere((network) => 
+        network.macAddress == assessment.networkId || 
+        network.id == assessment.networkId);
+        
+      if (networkIndex == -1) {
+        developer.log('⚠️ Network not found for security assessment: ${assessment.networkId}');
+        return;
+      }
+      
+      final network = _networks[networkIndex];
+      final hasThreats = assessment.detectedThreats.isNotEmpty;
+      
+      // Apply threat assessment to network status
+      if (hasThreats) {
+        NetworkStatus newStatus = NetworkStatus.suspicious;
+        String threatDescription = 'Security threats detected: ';
+        
+        // Build threat description from detected threats
+        final threatTypes = assessment.detectedThreats.map((t) => t.type.toString().split('.').last).toList();
+        threatDescription += threatTypes.join(', ');
+        
+        // Add threat details if available
+        if (assessment.detectedThreats.isNotEmpty) {
+          final primaryThreat = assessment.detectedThreats.first;
+          if (primaryThreat.description.isNotEmpty) {
+            threatDescription += '. ${primaryThreat.description}';
+          }
+        }
+        
+        // Update network with threat information
+        _networks[networkIndex] = network.copyWith(
+          status: newStatus,
+          description: threatDescription,
+        );
+        
+        developer.log('🚨 MARKED NETWORK AS SUSPICIOUS: ${network.name} (${assessment.networkId})');
+        developer.log('🔍 Threats: ${threatTypes.join(', ')}');
+        developer.log('📊 Threat Level: ${assessment.threatLevel}');
+        developer.log('🔢 Confidence: ${(assessment.confidenceScore * 100).toStringAsFixed(1)}%');
+      } else {
+        developer.log('✅ Network passed security assessment: ${network.name}');
+      }
+      
+    } catch (e) {
+      developer.log('❌ Error applying security assessment: $e');
+    }
+  }
+
+  /// Check for Evil Twin attacks against verified whitelist networks
+  void _checkForWhitelistMimicking(SecurityAssessment assessment) {
+    try {
+      // Only process if this assessment indicates an Evil Twin threat
+      final hasEvilTwinThreat = assessment.detectedThreats.any(
+        (threat) => threat.type == ThreatType.evilTwin || 
+                   threat.description.toLowerCase().contains('evil twin') ||
+                   threat.description.toLowerCase().contains('mimicking') ||
+                   threat.description.toLowerCase().contains('spoofing')
+      );
+      
+      if (!hasEvilTwinThreat) {
+        return; // No Evil Twin threat detected
+      }
+      
+      // Find the network being analyzed
+      final suspiciousNetwork = _networks.firstWhere(
+        (network) => network.macAddress == assessment.networkId,
+        orElse: () => NetworkModel(
+          id: assessment.networkId,
+          name: assessment.networkId, // Fallback
+          status: NetworkStatus.suspicious,
+          securityType: SecurityType.open,
+          signalStrength: 0,
+          macAddress: assessment.networkId,
+          lastSeen: DateTime.now(),
+        ),
+      );
+      
+      // Check if this network is mimicking a verified whitelist network
+      final isWhitelistMimicking = _isNetworkMimickingWhitelist(suspiciousNetwork);
+      
+      if (!isWhitelistMimicking) {
+        developer.log('⚠️ Evil Twin detected but not mimicking a whitelist network: ${suspiciousNetwork.name}');
+        return; // Not mimicking a whitelist network
+      }
+      
+      // Generate threat reporting suggestion for verified whitelist mimicking
+      if (_alertProvider != null) {
+        final threatDescription = assessment.detectedThreats
+            .firstWhere((t) => t.type == ThreatType.evilTwin, 
+                      orElse: () => assessment.detectedThreats.first)
+            .description;
+        
+        developer.log('🚨 Whitelist mimicking detected! Generating threat report suggestion for: ${suspiciousNetwork.name}');
+        
+        _alertProvider!.generateUnifiedSuspiciousNetworkAlert(
+          suspiciousNetwork,
+          threatDescription,
+          assessment.recommendations,
+          isWhitelistMimicking: true,
+        );
+      }
+    } catch (e) {
+      developer.log('❌ Error checking for whitelist mimicking: $e');
+    }
+  }
+  
+  /// Check if a suspicious network is mimicking a verified whitelist network
+  bool _isNetworkMimickingWhitelist(NetworkModel suspiciousNetwork) {
+    try {
+      // CRITICAL: First check for government network pattern mimicking
+      final isGovernmentPattern = _isGovernmentNetworkPattern(suspiciousNetwork.name);
+      if (isGovernmentPattern) {
+        developer.log('🚨 Government network pattern detected: ${suspiciousNetwork.name}');
+        return true; // Always consider government patterns as whitelist mimicking
+      }
+      
+      // Then check traditional whitelist
+      if (_currentWhitelist == null) {
+        developer.log('⚠️ No whitelist available for mimicking check');
+        return false;
+      }
+      
+      // Check if there's a verified network with the same SSID in the whitelist
+      final whitelistAccessPoint = _currentWhitelist!.accessPoints.firstWhere(
+        (ap) => ap.ssid.toLowerCase() == suspiciousNetwork.name.toLowerCase(),
+        orElse: () => AccessPointData(
+          id: '',
+          ssid: '',
+          macAddress: '',
+          latitude: 0,
+          longitude: 0,
+          region: '',
+          province: '',
+          city: '',
+          signalStrength: {},
+          type: '',
+          status: '',
+          isVerified: false,
+        ),
+      );
+      
+      // If no whitelist entry found, not mimicking
+      if (whitelistAccessPoint.ssid.isEmpty) {
+        return false;
+      }
+      
+      // Check if the suspicious network has a different MAC address than the whitelist entry
+      final isDifferentMAC = whitelistAccessPoint.macAddress.toLowerCase() != suspiciousNetwork.macAddress.toLowerCase();
+      
+      if (isDifferentMAC && whitelistAccessPoint.status.toLowerCase() == 'active') {
+        developer.log('🎯 Whitelist mimicking detected: ${suspiciousNetwork.name}');
+        developer.log('   Legitimate MAC: ${whitelistAccessPoint.macAddress}');
+        developer.log('   Suspicious MAC: ${suspiciousNetwork.macAddress}');
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      developer.log('❌ Error checking whitelist mimicking: $e');
+      return false;
+    }
+  }
+
+  /// Check if network name contains government patterns that should trigger reporting
+  bool _isGovernmentNetworkPattern(String networkName) {
+    final governmentPatterns = [
+      // DICT patterns
+      'dict', 'DICT', 'Dict',
+      'dict-calabarzon', 'DICT-CALABARZON', 'Dict-Calabarzon',
+      'dict_calabarzon', 'DICT_CALABARZON',
+      // Government office patterns  
+      'dost', 'DOST', 'dilg', 'DILG', 'deped', 'DepEd', 'DEPED',
+      'doh', 'DOH', 'dti', 'DTI', 'dswd', 'DSWD',
+      // Regional patterns
+      'calabarzon', 'CALABARZON', 'Calabarzon',
+      'region4a', 'REGION4A', 'Region4A',
+      // Municipal patterns
+      'lgu', 'LGU', 'municipal', 'MUNICIPAL', 'Municipal',
+      'city_hall', 'CITY_HALL', 'cityhall', 'CITYHALL',
+      // Generic government patterns
+      'gov', 'GOV', 'Gov', 'government', 'GOVERNMENT', 'Government',
+      'official', 'OFFICIAL', 'Official'
+    ];
+
+    final lowerName = networkName.toLowerCase();
+    return governmentPatterns.any((pattern) => lowerName.contains(pattern.toLowerCase()));
+  }
+
 }

@@ -18,6 +18,11 @@ class AppColors {
   static const Color lightGray = Color(0xFFE2E8F0);
   static const Color bgGray = Color(0xFFF8FAFC);
   
+  // Text colors
+  static const Color textPrimary = Color(0xFF1E293B);
+  static const Color textSecondary = Color(0xFF64748B);
+  static const Color background = Color(0xFFFAFAFA);
+  
   // Status badge colors
   static const Color verifiedBg = Color(0x1A10B981);
   static const Color verifiedText = Color(0xFF047857);

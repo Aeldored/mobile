@@ -190,6 +190,12 @@ class AlertCard extends StatelessWidget {
                     ),
                   ],
                   
+                  // Threat Report Status Display
+                  if (alert.threatReportStatus != ThreatReportStatus.notApplicable) ...[
+                    const SizedBox(height: 12),
+                    _buildThreatReportStatus(),
+                  ],
+                  
                   const SizedBox(height: 12),
                   
                   // Actions
@@ -221,6 +227,51 @@ class AlertCard extends StatelessWidget {
                             style: TextStyle(color: AppColors.warning),
                           ),
                         ),
+                      ] else if ((alert.type == AlertType.suspiciousNetwork || 
+                                  alert.type == AlertType.evilTwin || 
+                                  alert.type == AlertType.reportSuggestion) && 
+                                 alert.threatReportStatus == ThreatReportStatus.pending && 
+                                 onAction != null) ...[
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: onAction,
+                          icon: const Icon(Icons.report_problem, size: 16),
+                          label: const Text('Report Threat'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.danger,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            elevation: 2,
+                          ),
+                        ),
+                      ] else if ((alert.type == AlertType.suspiciousNetwork || 
+                                  alert.type == AlertType.evilTwin || 
+                                  alert.type == AlertType.reportSuggestion) && 
+                                 alert.threatReportStatus == ThreatReportStatus.reported) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.check_circle, size: 16, color: AppColors.success),
+                              SizedBox(width: 4),
+                              Text(
+                                'Reported',
+                                style: TextStyle(
+                                  color: AppColors.success,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ] else if (onDismiss != null) ...[
                         const SizedBox(width: 8),
                         TextButton(
@@ -246,9 +297,10 @@ class AlertCard extends StatelessWidget {
     switch (alert.type) {
       case AlertType.critical:
       case AlertType.evilTwin:
+      case AlertType.suspiciousNetwork:
+      case AlertType.reportSuggestion: // FIXED: Use danger color to match suspicious networks
         return AppColors.danger;
       case AlertType.warning:
-      case AlertType.suspiciousNetwork:
         return AppColors.warning;
       case AlertType.info:
       case AlertType.networkBlocked:
@@ -266,6 +318,8 @@ class AlertCard extends StatelessWidget {
       case AlertType.warning:
       case AlertType.suspiciousNetwork:
         return Icons.error_outline;
+      case AlertType.reportSuggestion:
+        return Icons.report_problem;
       case AlertType.info:
       case AlertType.networkBlocked:
         return Icons.info_outline;
@@ -286,6 +340,8 @@ class AlertCard extends StatelessWidget {
         return 'Evil Twin Detected';
       case AlertType.suspiciousNetwork:
         return 'Suspicious Network';
+      case AlertType.reportSuggestion:
+        return 'Report Suggestion';
       case AlertType.networkBlocked:
         return 'Network Blocked';
       case AlertType.networkTrusted:
@@ -312,5 +368,59 @@ class AlertCard extends StatelessWidget {
     } else {
       return DateFormat('MMM d, y').format(alert.timestamp);
     }
+  }
+
+  Widget _buildThreatReportStatus() {
+    IconData icon;
+    Color color;
+    String text;
+    
+    switch (alert.threatReportStatus) {
+      case ThreatReportStatus.pending:
+        icon = Icons.report_problem_outlined;
+        color = AppColors.warning;
+        text = 'Can be reported';
+        break;
+      case ThreatReportStatus.reported:
+        icon = Icons.check_circle;
+        color = AppColors.success;
+        text = 'Threat reported';
+        break;
+      case ThreatReportStatus.failed:
+        icon = Icons.error_outline;
+        color = AppColors.danger;
+        text = 'Report failed';
+        break;
+      case ThreatReportStatus.notApplicable:
+        return const SizedBox.shrink();
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: color,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

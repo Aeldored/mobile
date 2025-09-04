@@ -54,7 +54,7 @@ class AutoReconnectManager {
       
       // Since DirectWiFiController was removed, we'll use a simplified approach
       // In practice, this would integrate with the NativeWiFiController
-      final currentSSID = null; // Simplified for now
+      const currentSSID = null; // Simplified for now
       final timeSinceDisconnect = DateTime.now().difference(_lastDisconnectTime!);
       
       // Check if we reconnected to the same network within detection window
@@ -356,7 +356,7 @@ class AutoReconnectManager {
       recordDisconnectEvent(network.name);
       
       // Perform disconnect - simplified without DirectWiFiController
-      final disconnectResult = true; // Simplified for now
+      const disconnectResult = true; // Simplified for now
       
       if (disconnectResult) {
         developer.log('✅ Initial disconnect successful');
@@ -377,7 +377,7 @@ class AutoReconnectManager {
           }
           
           // Try disconnect again after notification - simplified
-          final secondDisconnect = true; // Simplified for now
+          const secondDisconnect = true; // Simplified for now
           if (secondDisconnect) {
             resetAutoReconnectDetection();
             return true;

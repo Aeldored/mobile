@@ -15,7 +15,7 @@ class SavedNetworksService {
   /// Get list of saved networks from device
   Future<List<SavedNetwork>> getSavedNetworks() async {
     try {
-      final List<SavedNetwork> savedNetworks = [];
+      final List<SavedNetwork> savedNetworks = <SavedNetwork>[];
       
       // Try to get saved networks from device (Android-specific)
       // Enhanced: Use native controller for system saved networks
@@ -77,7 +77,7 @@ class SavedNetworksService {
   Future<String?> getSavedCredentials(String ssid) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final credentialsMap = prefs.getStringList(_networkCredentialsKey) ?? [];
+      final credentialsMap = prefs.getStringList(_networkCredentialsKey) ?? <String>[];
       
       for (final entry in credentialsMap) {
         final parts = entry.split('|');
@@ -97,7 +97,7 @@ class SavedNetworksService {
   Future<void> saveNetworkCredentials(String ssid, String password) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final credentialsMap = prefs.getStringList(_networkCredentialsKey) ?? [];
+      final credentialsMap = prefs.getStringList(_networkCredentialsKey) ?? <String>[];
       
       // Remove existing entry for this SSID
       credentialsMap.removeWhere((entry) => entry.startsWith('$ssid|'));
@@ -191,7 +191,7 @@ class SavedNetworksService {
       await prefs.setStringList(_savedNetworksKey, networkStrings);
       
       // Remove from credentials
-      final credentialsMap = prefs.getStringList(_networkCredentialsKey) ?? [];
+      final credentialsMap = prefs.getStringList(_networkCredentialsKey) ?? <String>[];
       credentialsMap.removeWhere((entry) => entry.startsWith('$ssid|'));
       await prefs.setStringList(_networkCredentialsKey, credentialsMap);
       
@@ -205,14 +205,14 @@ class SavedNetworksService {
   Future<List<SavedNetwork>> _getLocalSavedNetworks() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final networkStrings = prefs.getStringList(_savedNetworksKey) ?? [];
+      final networkStrings = prefs.getStringList(_savedNetworksKey) ?? <String>[];
       
       return networkStrings.map((jsonString) {
         return SavedNetwork.fromJson(jsonString);
       }).toList();
     } catch (e) {
       developer.log('Error getting local saved networks: $e');
-      return [];
+      return <SavedNetwork>[];
     }
   }
 
@@ -229,7 +229,7 @@ class SavedNetworksService {
       
       // For demo purposes, simulate connection
       // In production, use: await WiFiForIoTPlugin.connect(ssid, password: password);
-      await Future.delayed(Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 2));
       
       // Simulate success rate based on network type
       final random = DateTime.now().millisecondsSinceEpoch % 10;
