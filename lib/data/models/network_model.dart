@@ -1,6 +1,6 @@
-enum NetworkStatus { verified, suspicious, unknown, blocked, trusted, flagged }
+import 'security_assessment.dart';
 
-enum SecurityType { wpa2, wpa3, wep, open }
+enum NetworkStatus { verified, suspicious, unknown, blocked, trusted, flagged }
 
 enum AccessPointAction { block, trust, flag, unflag, unblock, untrust }
 

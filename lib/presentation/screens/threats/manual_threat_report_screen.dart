@@ -5,6 +5,7 @@ import '../../../data/models/alert_model.dart';
 import '../../../data/models/threat_report_model.dart';
 import '../../../data/models/scan_history_model.dart';
 import '../../../data/models/network_model.dart';
+import '../../../data/models/security_assessment.dart';
 import '../../../data/services/threat_reporting_service.dart';
 import 'widgets/threat_type_helper.dart';
 
@@ -114,7 +115,9 @@ class _ManualThreatReportScreenState extends State<ManualThreatReportScreen> {
   Future<void> _getCurrentLocation() async {
     try {
       _currentPosition = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       if (mounted) {
         _locationController.text = 'GPS: ${_currentPosition!.latitude.toStringAsFixed(6)}, ${_currentPosition!.longitude.toStringAsFixed(6)}';

@@ -220,7 +220,23 @@ class SettingsDrawer extends StatelessWidget {
               title: const Text('Auto-Block Suspicious', style: TextStyle(fontSize: 15)),
               trailing: Switch(
                 value: settings.autoBlockSuspicious,
-                onChanged: (value) => settings.toggleAutoBlock(),
+                onChanged: (value) async {
+                  await settings.toggleAutoBlock();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          settings.autoBlockSuspicious 
+                              ? 'Auto-block enabled - suspicious networks will be automatically blocked'
+                              : 'Auto-block disabled - suspicious networks will only be flagged',
+                        ),
+                        backgroundColor: settings.autoBlockSuspicious 
+                            ? AppColors.primary : Colors.orange,
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
                 activeColor: AppColors.primary,
               ),
             );

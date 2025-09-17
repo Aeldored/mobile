@@ -4,6 +4,7 @@ import 'package:wifi_scan/wifi_scan.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/network_model.dart';
+import '../models/security_assessment.dart';
 import 'geocoding_service.dart';
 
 class WiFiScanningService {

@@ -217,7 +217,7 @@ class AlertProvider extends ChangeNotifier {
   /// Prevent duplicate reporting for same network
   bool canNetworkBeReported(String networkName, String? macAddress) {
     if (hasNetworkBeenReported(networkName, macAddress)) {
-      developer.log('⚠️ Network ${networkName} (${macAddress}) already reported from this device');
+      developer.log('⚠️ Network $networkName ($macAddress) already reported from this device');
       return false;
     }
     return true;

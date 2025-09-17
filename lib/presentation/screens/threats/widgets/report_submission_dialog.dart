@@ -119,8 +119,8 @@ class _ReportSubmissionDialogState extends State<ReportSubmissionDialog>
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => _state == SubmissionState.error,
+    return PopScope(
+      canPop: _state == SubmissionState.error,
       child: Dialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/network_model.dart';
+import '../models/security_assessment.dart';
 import '../models/wifi_connection_result.dart';
 import 'saved_networks_service.dart';
 import 'native_wifi_controller.dart' show NativeWiFiController, WiFiConnectionInfo;

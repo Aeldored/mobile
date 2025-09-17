@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/network_model.dart';
+import '../models/security_assessment.dart';
 import 'wifi_connection_service.dart';
 import 'saved_networks_service.dart';
 import '../models/wifi_connection_result.dart';

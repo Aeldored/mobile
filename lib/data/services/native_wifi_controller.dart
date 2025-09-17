@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/services.dart';
 import 'package:wifi_iot/wifi_iot.dart';
-import '../models/network_model.dart';
+import '../models/security_assessment.dart';
 import '../models/wifi_connection_result.dart';
 
 /// Native Wi-Fi controller that provides actual device-level Wi-Fi management

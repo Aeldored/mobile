@@ -1,5 +1,5 @@
 import 'dart:developer' as developer;
-import 'dart:math';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -45,10 +45,16 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
   bool _isLocating = false;
   bool _hasLocationPermission = false;
   bool _isLegendExpanded = false;
-  bool _isMapReady = false;
+  bool _isMapReady = true;  // Start as ready to prevent loading blocks
   bool _mapInitialized = false;
   // Note: _showWhitelistedNetworks now comes from SettingsProvider
   List<WhitelistEntry> _whitelistedNetworks = [];
+  
+  // Zoom-responsive marker system
+  double _currentZoom = 9.0;
+  static const double _minClusterZoom = 8.0;
+  static const double _mediumClusterZoom = 12.0;
+  static const double _maxClusterZoom = 16.0;
 
   @override
   void initState() {
@@ -129,16 +135,20 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
 
   /// Initialize map options once to prevent assertion errors
   void _initializeMapOptions() {
+    // Sync current zoom with initial zoom
+    final initialZoom = _getInitialZoom();
+    _currentZoom = initialZoom;
+    
     _mapOptions = MapOptions(
       initialCenter: _getInitialCenter(),
-      initialZoom: _getInitialZoom(),
+      initialZoom: initialZoom,
       minZoom: 8.0,
       maxZoom: 18.0,
-      // Restrict bounds to CALABARZON region
+      // Restrict bounds to extended CALABARZON region (matching web dashboard)
       cameraConstraint: CameraConstraint.contain(
         bounds: LatLngBounds(
-          const LatLng(13.0, 120.0), // Southwest
-          const LatLng(15.0, 122.0), // Northeast
+          const LatLng(13.0, 120.2), // Southwest - extended west to match web dashboard
+          const LatLng(15.5, 123.0), // Northeast - extended north and east to match web dashboard
         ),
       ),
       onTap: (tapPosition, point) => _onMapTap(point),
@@ -475,17 +485,15 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
             children: [
               _buildMap(),
               
-              // Loading overlay
-              if (!_isMapReady)
+              // Loading overlay - only show during actual initialization
+              if (!_mapInitialized)
                 _buildLoadingOverlay(),
               
-              // Map controls (only show when map is ready)
-              if (_isMapReady)
-                _buildMapControls(),
+              // Map controls - always show since map is ready by default
+              _buildMapControls(),
               
-              // Unified map legend
-              if (_isMapReady)
-                _buildUnifiedMapLegend(),
+              // Unified map legend - always show since map is ready by default
+              _buildUnifiedMapLegend(),
               
               // Map expansion is controlled only by the expand button
             ],
@@ -557,44 +565,103 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
 
 
   Widget _buildMap() {
+    developer.log('🗺️  Building FlutterMap with ${_isMapReady ? "ready" : "not ready"} state');
     return Consumer<NetworkProvider>(
       builder: (context, networkProvider, child) {
         final networks = networkProvider.networks;
+        developer.log('🗺️  FlutterMap rendering with ${networks.length} networks');
         
-        // Ensure map controller is ready before building FlutterMap
-        if (!_isMapReady) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+        // Safety check for map options
+        if (_mapOptions == null) {
+          developer.log('❌ MapOptions is null, reinitializing...');
+          _initializeMapOptions();
         }
         
-        return FlutterMap(
-          key: const ValueKey('network_map'),
-          mapController: _mapController,
-          options: _mapOptions!,
-          children: [
-            // Base map tiles
+        // Restore FlutterMap with simplified TileLayer configuration
+        return SizedBox(
+          width: double.infinity,
+          height: double.infinity,
+          child: FlutterMap(
+            key: const ValueKey('network_map'),
+            mapController: _mapController,
+            options: _mapOptions!,
+            children: [
+            // FINAL: Multiple tile provider approach for maximum compatibility
             TileLayer(
+              // Start with basic OSM - most reliable
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.dict.disconx',
               maxZoom: 18,
-              // Performance optimizations
+              minZoom: 8,
+              additionalOptions: const {
+                'User-Agent': 'DiSConX DICT-CALABARZON',
+              },
               keepBuffer: 2,
               panBuffer: 1,
-              // Error handling
+              retinaMode: false, // Disable for better compatibility
               errorTileCallback: (tile, error, stackTrace) {
-                developer.log('Map tile error: $error');
+                developer.log('🌍 Primary OSM error: ${tile.coordinates} - $error');
               },
             ),
             
-            // Province boundaries (simplified)
-            PolygonLayer(
-              polygons: _buildProvincePolygons(),
+            // Debugging overlay - shows tile grid (remove when working)
+            MarkerLayer(
+              markers: [
+                for (int i = 0; i < 3; i++)
+                  for (int j = 0; j < 3; j++)
+                    Marker(
+                      point: LatLng(14.2 + (i * 0.2), 121.3 + (j * 0.2)),
+                      width: 20,
+                      height: 20,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.7),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '$i$j',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+              ],
             ),
             
-            // Access point markers with performance optimization
+            // DEBUG: Temporarily remove complex layers to focus on basic map display
+            // Province boundaries (simplified)
+            // PolygonLayer(
+            //   polygons: _buildProvincePolygons(),
+            // ),
+            
+            // Access point markers with performance optimization  
             MarkerLayer(
               markers: _buildAccessPointMarkers(networks),
+            ),
+            
+            // Add a simple test marker to verify map is working
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: const LatLng(14.296990, 121.459040), // Center of CALABARZON
+                  width: 60.0,
+                  height: 60.0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                    ),
+                    child: const Icon(Icons.location_on, color: Colors.white, size: 30),
+                  ),
+                ),
+              ],
             ),
             
             // Whitelisted network markers - Using SettingsProvider with forced rebuild
@@ -637,6 +704,7 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
               markers: _buildCityLabels(),
             ),
           ],
+          ),
         );
       },
     );
@@ -800,72 +868,16 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
     );
   }
 
-  List<Polygon> _buildProvincePolygons() {
-    final provinceColors = GeocodingService.getProvinceColors();
-    final polygons = <Polygon>[];
-
-    // Simplified province boundaries (in real implementation, use proper GeoJSON)
-    final provinceBounds = {
-      'Cavite': [
-        const LatLng(14.6, 120.7),
-        const LatLng(14.6, 121.2),
-        const LatLng(14.0, 121.2),
-        const LatLng(14.0, 120.7),
-      ],
-      'Laguna': [
-        const LatLng(14.6, 121.0),
-        const LatLng(14.6, 121.7),
-        const LatLng(14.0, 121.7),
-        const LatLng(14.0, 121.0),
-      ],
-      'Batangas': [
-        const LatLng(14.2, 120.6),
-        const LatLng(14.2, 121.6),
-        const LatLng(13.4, 121.6),
-        const LatLng(13.4, 120.6),
-      ],
-      'Rizal': [
-        const LatLng(14.9, 121.0),
-        const LatLng(14.9, 121.4),
-        const LatLng(14.4, 121.4),
-        const LatLng(14.4, 121.0),
-      ],
-      'Quezon': [
-        const LatLng(14.3, 121.2),
-        const LatLng(14.3, 122.2),
-        const LatLng(13.5, 122.2),
-        const LatLng(13.5, 121.2),
-      ],
-    };
-
-    for (final entry in provinceBounds.entries) {
-      final province = entry.key;
-      final bounds = entry.value;
-      final color = Color(provinceColors[province] ?? 0xFF9E9E9E);
-
-      if (_selectedProvince == 'All' || _selectedProvince == province) {
-        polygons.add(
-          Polygon(
-            points: bounds,
-            color: color.withValues(alpha: 0.1),
-            borderColor: color.withValues(alpha: 0.3),
-            borderStrokeWidth: 1.0,
-          ),
-        );
-      }
-    }
-
-    return polygons;
-  }
 
   List<Marker> _buildAccessPointMarkers(List<NetworkModel> networks) {
     final markers = <Marker>[];
     
-    // Performance optimization: limit markers based on zoom level
-    final maxMarkers = networks.length > 100 ? 50 : networks.length;
-    
-    // Group networks by approximate location to prevent overlapping
-    final locationGroups = <String, List<NetworkModel>>{};
+    try {
+      // Dynamic max markers based on zoom level for performance
+      final maxMarkers = _getMaxMarkersForZoom();
+      
+      // Use precise coordinates for accurate positioning
+      final validNetworks = <NetworkModel>[];
     
     for (final network in networks) {
       if (network.latitude != null && network.longitude != null) {
@@ -874,79 +886,195 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
           final cityInfo = _geocodingService.getCityInfo(network.cityName ?? '');
           if (cityInfo?['province'] != _selectedProvince) continue;
         }
-        
-        // Create location key with reduced precision to group nearby networks
-        final latRounded = (network.latitude! * 1000).round() / 1000;
-        final lngRounded = (network.longitude! * 1000).round() / 1000;
-        final locationKey = '$latRounded,$lngRounded';
-        
-        locationGroups.putIfAbsent(locationKey, () => []).add(network);
+        validNetworks.add(network);
       }
     }
     
-    int markersAdded = 0;
+    // Sort networks by priority (connected > suspicious > signal strength)
+    validNetworks.sort((a, b) {
+      if (a.isConnected && !b.isConnected) return -1;
+      if (!a.isConnected && b.isConnected) return 1;
+      if (a.status == NetworkStatus.suspicious && b.status != NetworkStatus.suspicious) return -1;
+      if (a.status != NetworkStatus.suspicious && b.status == NetworkStatus.suspicious) return 1;
+      return b.signalStrength.compareTo(a.signalStrength);
+    });
     
-    for (final entry in locationGroups.entries) {
-      if (markersAdded >= maxMarkers) break;
-      
-      final networksAtLocation = entry.value;
-      
-      // Sort networks by priority (connected > suspicious > others)
-      networksAtLocation.sort((a, b) {
-        if (a.isConnected && !b.isConnected) return -1;
-        if (!a.isConnected && b.isConnected) return 1;
-        if (a.status == NetworkStatus.suspicious && b.status != NetworkStatus.suspicious) return -1;
-        if (a.status != NetworkStatus.suspicious && b.status == NetworkStatus.suspicious) return 1;
-        return b.signalStrength.compareTo(a.signalStrength);
-      });
-      
-      if (networksAtLocation.length == 1) {
-        // Single network - place normally
-        final network = networksAtLocation.first;
-        final position = LatLng(network.latitude!, network.longitude!);
-        
-        markers.add(_createSingleMarker(network, position));
-        markersAdded++;
-      } else {
-        // Multiple networks - create cluster or offset markers
-        final baseNetwork = networksAtLocation.first;
-        final basePosition = LatLng(baseNetwork.latitude!, baseNetwork.longitude!);
-        
-        if (networksAtLocation.length <= 4) {
-          // Small group - offset individual markers in a pattern
-          for (int i = 0; i < networksAtLocation.length && markersAdded < maxMarkers; i++) {
-            final network = networksAtLocation[i];
-            final offsetPosition = _getOffsetPosition(basePosition, i, networksAtLocation.length);
-            
-            markers.add(_createSingleMarker(network, offsetPosition));
-            markersAdded++;
-          }
-        } else {
-          // Large group - create cluster marker
-          markers.add(_createClusterMarker(networksAtLocation, basePosition));
-          markersAdded++;
-        }
-      }
+    // Process networks with zoom-responsive clustering
+    if (_currentZoom <= _minClusterZoom) {
+      // Far zoom: Aggressive clustering by 500m radius
+      markers.addAll(_createZoomLevelMarkers(validNetworks, maxMarkers, 500.0));
+    } else if (_currentZoom <= _mediumClusterZoom) {
+      // Medium zoom: Moderate clustering by 100m radius
+      markers.addAll(_createZoomLevelMarkers(validNetworks, maxMarkers, 100.0));
+    } else if (_currentZoom <= _maxClusterZoom) {
+      // Close zoom: Light clustering by 20m radius
+      markers.addAll(_createZoomLevelMarkers(validNetworks, maxMarkers, 20.0));
+    } else {
+      // Very close zoom: Minimal clustering, show individual networks
+      markers.addAll(_createZoomLevelMarkers(validNetworks, maxMarkers, 5.0));
     }
 
+      developer.log('📍 Created ${markers.length} markers for zoom level ${_currentZoom.toStringAsFixed(1)}');
+      return markers;
+    } catch (e, stackTrace) {
+      developer.log('❌ Error building markers: $e', stackTrace: stackTrace);
+      return []; // Return empty list to prevent crashes
+    }
+  }
+  
+  /// Get maximum markers allowed based on zoom level
+  int _getMaxMarkersForZoom() {
+    if (_currentZoom <= _minClusterZoom) {
+      return 30; // Far zoom - fewer markers for performance
+    } else if (_currentZoom <= _mediumClusterZoom) {
+      return 75; // Medium zoom - moderate markers
+    } else if (_currentZoom <= _maxClusterZoom) {
+      return 150; // Close zoom - more markers
+    } else {
+      return 300; // Very close zoom - show most markers
+    }
+  }
+  
+  /// Create markers with distance-based clustering and viewport culling
+  List<Marker> _createZoomLevelMarkers(List<NetworkModel> networks, int maxMarkers, double clusterRadiusMeters) {
+    final markers = <Marker>[];
+    final processedNetworks = <NetworkModel>{};
+    
+    // Get current viewport bounds for culling (skip if map not ready)
+    final viewportBounds = _mapInitialized ? _getViewportBounds() : null;
+    
+    // Filter networks to only those visible in viewport (with padding)
+    final visibleNetworks = networks.where((network) {
+      if (viewportBounds == null || !_mapInitialized) return true; // Show all if bounds unavailable
+      
+      final lat = network.latitude!;
+      final lng = network.longitude!;
+      
+      // Add padding to viewport for smooth transitions
+      const padding = 0.01; // ~1km padding
+      return lat >= viewportBounds['south']! - padding &&
+             lat <= viewportBounds['north']! + padding &&
+             lng >= viewportBounds['west']! - padding &&
+             lng <= viewportBounds['east']! + padding;
+    }).toList();
+    
+    developer.log('📍 Viewport culling: ${visibleNetworks.length}/${networks.length} networks visible');
+    
+    for (final network in visibleNetworks) {
+      if (processedNetworks.contains(network) || markers.length >= maxMarkers) break;
+      
+      final networkPosition = LatLng(network.latitude!, network.longitude!);
+      
+      // Find nearby networks within clustering radius
+      final nearbyNetworks = <NetworkModel>[network];
+      processedNetworks.add(network);
+      
+      for (final otherNetwork in visibleNetworks) {
+        if (processedNetworks.contains(otherNetwork)) continue;
+        
+        final otherPosition = LatLng(otherNetwork.latitude!, otherNetwork.longitude!);
+        final distance = _calculateDistance(
+          networkPosition.latitude, networkPosition.longitude,
+          otherPosition.latitude, otherPosition.longitude
+        ) * 1000; // Convert to meters
+        
+        if (distance <= clusterRadiusMeters) {
+          nearbyNetworks.add(otherNetwork);
+          processedNetworks.add(otherNetwork);
+        }
+      }
+      
+      if (nearbyNetworks.length == 1) {
+        // Single network - create individual marker
+        markers.add(_createSingleMarker(network, networkPosition));
+      } else if (nearbyNetworks.length <= 4 && _currentZoom > _mediumClusterZoom) {
+        // Small group at close zoom - create offset individual markers
+        for (int i = 0; i < nearbyNetworks.length; i++) {
+          final offsetPosition = _getAccurateOffsetPosition(networkPosition, i, nearbyNetworks.length);
+          markers.add(_createSingleMarker(nearbyNetworks[i], offsetPosition));
+        }
+      } else {
+        // Large group - create cluster marker
+        markers.add(_createClusterMarker(nearbyNetworks, networkPosition));
+      }
+    }
+    
     return markers;
   }
   
-  /// Create offset position for markers in small groups
-  LatLng _getOffsetPosition(LatLng basePosition, int index, int total) {
+  /// Get current viewport bounds for marker culling
+  Map<String, double>? _getViewportBounds() {
+    try {
+      // Check if map controller is ready and camera is available
+      if (!_isMapControllerReady()) {
+        developer.log('📍 Map controller not ready for viewport bounds');
+        return null;
+      }
+      
+      final camera = _mapController.camera;
+      if (camera.visibleBounds.north == 0.0 && camera.visibleBounds.south == 0.0) {
+        developer.log('📍 Camera bounds not yet initialized');
+        return null;
+      }
+      
+      final bounds = camera.visibleBounds;
+      return {
+        'north': bounds.north,
+        'south': bounds.south,
+        'east': bounds.east,
+        'west': bounds.west,
+      };
+    } catch (e) {
+      developer.log('❌ Error getting viewport bounds: $e');
+      return null;
+    }
+  }
+  
+  /// Create accurate offset position for markers in small groups
+  LatLng _getAccurateOffsetPosition(LatLng basePosition, int index, int total) {
     if (index == 0) return basePosition; // First marker stays at original position
     
-    // Create circular pattern around base position
-    const double offsetDistance = 0.0008; // Approximately 80 meters
-    final double angle = (2 * 3.14159 * index) / total;
+    // Scale offset distance based on zoom level for better visibility
+    double offsetDistance;
+    if (_currentZoom <= _mediumClusterZoom) {
+      offsetDistance = 0.001; // ~100 meters at medium zoom
+    } else if (_currentZoom <= _maxClusterZoom) {
+      offsetDistance = 0.0005; // ~50 meters at close zoom
+    } else {
+      offsetDistance = 0.0002; // ~20 meters at very close zoom
+    }
     
-    final double latOffset = offsetDistance * cos(angle);
-    final double lngOffset = offsetDistance * sin(angle);
+    // Create circular pattern around base position
+    final double angle = (2 * math.pi * index) / total;
+    
+    final double latOffset = offsetDistance * math.cos(angle);
+    final double lngOffset = offsetDistance * math.sin(angle);
     
     return LatLng(
       basePosition.latitude + latOffset,
       basePosition.longitude + lngOffset,
     );
+  }
+  
+  /// Calculate distance between two coordinates using Haversine formula
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const double earthRadius = 6371; // Earth's radius in kilometers
+    
+    final double dLat = _degreesToRadians(lat2 - lat1);
+    final double dLon = _degreesToRadians(lon2 - lon1);
+    
+    final double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degreesToRadians(lat1)) * math.cos(_degreesToRadians(lat2)) *
+            math.sin(dLon / 2) * math.sin(dLon / 2);
+    
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    
+    return earthRadius * c; // Distance in kilometers
+  }
+  
+  /// Convert degrees to radians
+  double _degreesToRadians(double degrees) {
+    return degrees * (math.pi / 180);
   }
   
   /// Create a single network marker
@@ -1185,29 +1313,44 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
     return markers;
   }
 
-  /// Get marker size based on network properties
+  /// Get marker size based on network properties and zoom level
   double _getMarkerSize(NetworkModel network) {
-    // Base size
-    double size = 32.0;
+    // Base size varies with zoom level
+    double baseSize;
+    if (_currentZoom <= _minClusterZoom) {
+      baseSize = 24.0; // Very far zoom - smaller markers
+    } else if (_currentZoom <= _mediumClusterZoom) {
+      baseSize = 28.0; // Medium zoom - medium markers
+    } else if (_currentZoom <= _maxClusterZoom) {
+      baseSize = 32.0; // Close zoom - normal markers
+    } else {
+      baseSize = 36.0; // Very close zoom - larger markers
+    }
+    
+    // Priority modifiers (more pronounced at closer zoom)
+    double priorityMultiplier = (_currentZoom > _mediumClusterZoom) ? 1.2 : 1.0;
     
     // Larger for connected networks
     if (network.isConnected) {
-      size += 8.0;
+      baseSize += (6.0 * priorityMultiplier);
     }
     
     // Larger for suspicious networks (make them more visible)
     if (network.status == NetworkStatus.suspicious) {
-      size += 4.0;
+      baseSize += (4.0 * priorityMultiplier);
     }
     
-    // Adjust based on signal strength
-    if (network.signalStrength > -50) {
-      size += 4.0; // Very strong signal
-    } else if (network.signalStrength > -70) {
-      size += 2.0; // Good signal
+    // Adjust based on signal strength (more visible at close zoom)
+    if (_currentZoom > _mediumClusterZoom) {
+      if (network.signalStrength > -50) {
+        baseSize += 3.0; // Very strong signal
+      } else if (network.signalStrength > -70) {
+        baseSize += 1.5; // Good signal
+      }
     }
     
-    return size;
+    // Ensure minimum size for visibility
+    return math.max(baseSize, 20.0);
   }
 
   Marker _buildCurrentLocationMarker() {
@@ -1701,6 +1844,22 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
   
   /// Handle map movement and persist camera position
   void _onMapMoved(MapCamera camera, bool hasGesture) {
+    // Initialize map state on first camera movement
+    if (!_mapInitialized) {
+      setState(() {
+        _mapInitialized = true;
+      });
+      developer.log('✅ Map camera initialized, zoom: ${camera.zoom.toStringAsFixed(1)}');
+    }
+    
+    // Track zoom level changes for responsive markers
+    if (_currentZoom != camera.zoom) {
+      setState(() {
+        _currentZoom = camera.zoom;
+      });
+      developer.log('🔍 Zoom level changed to: ${_currentZoom.toStringAsFixed(1)}');
+    }
+    
     // Only persist user-initiated movements (hasGesture = true)
     if (hasGesture && _mapInitialized) {
       try {
@@ -1923,8 +2082,8 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
         // Show cached networks if available
         await _refreshNearbyNetworks(networkProvider);
       } else {
-        // No location available - show appropriate message
-        _showLocationNotAvailableDialog();
+        // No location available - directly request permission for better UX
+        await _requestLocationPermissionForCentering(settingsProvider, mapStateProvider);
       }
     } catch (e) {
       developer.log('Location centering failed: $e');
@@ -2118,40 +2277,150 @@ class _NetworkMapWidgetState extends State<NetworkMapWidget> with AutomaticKeepA
   }
 
 
-  void _showLocationNotAvailableDialog() {
+  /// Request location permission directly when user wants to center location
+  Future<void> _requestLocationPermissionForCentering(
+    SettingsProvider settingsProvider,
+    MapStateProvider mapStateProvider,
+  ) async {
+    if (!mounted) return;
+    
+    // Show permission dialog with direct action
+    final shouldRequest = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.location_on, color: AppColors.primary),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Enable Location',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'To center the map on your current location, DiSConX needs access to your location. This helps you find nearby networks more accurately.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Allow Location'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldRequest == true) {
+      try {
+        // Request permission through SettingsProvider
+        await settingsProvider.toggleLocation();
+        
+        // If permission was granted, proceed with centering
+        if (settingsProvider.locationPermissionStatus == PermissionStatus.granted) {
+          // Fetch live location and center map
+          await _fetchAndCenterLiveLocation(mapStateProvider);
+          // Trigger network scan to show nearby networks on map
+          if (!mounted) return;
+          final networkProvider = context.read<NetworkProvider>();
+          await _refreshNearbyNetworks(networkProvider);
+          
+          if (mounted) {
+            final messenger = ScaffoldMessenger.of(context);
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white, size: 16),
+                    SizedBox(width: 8),
+                    Expanded(child: Text('Location enabled and map centered successfully')),
+                  ],
+                ),
+                backgroundColor: AppColors.success,
+                duration: Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        } else {
+          // Permission denied - show fallback options
+          _showLocationPermissionDeniedDialog();
+        }
+      } catch (e) {
+        developer.log('Failed to request location permission: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Failed to enable location: ${e.toString()}')),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  /// Show options when location permission is denied
+  void _showLocationPermissionDeniedDialog() {
     if (!mounted) return;
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.location_disabled, color: Colors.orange),
             SizedBox(width: 8),
-            Text('Location Not Available'),
+            Expanded(
+              child: Text(
+                'Location Permission Denied',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+              ),
+            ),
           ],
         ),
         content: const Text(
-          'Location access is disabled. Enable it in Settings to update your position, or we can use your last known location if available.',
+          'Location access was denied. You can:\n\n'
+          '• Enable it manually in device settings\n'
+          '• Use the settings drawer to try again\n'
+          '• Continue without location services (limited functionality)',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('Continue'),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // CRITICAL FIX: Open settings drawer instead of navigating to non-existent tab
+              // Open settings drawer for manual permission management
               final scaffoldKey = Scaffold.of(context);
               scaffoldKey.openEndDrawer();
             },
-            child: const Text('Go to Settings'),
+            child: const Text('Open Settings'),
           ),
         ],
       ),
     );
   }
+
 
   void _showLocationSettingsDialog() {
     if (!mounted) return;

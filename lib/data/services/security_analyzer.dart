@@ -1,27 +1,37 @@
 import 'dart:developer' as developer;
-import 'dart:math' as math;
 import 'package:wifi_scan/wifi_scan.dart';
-import '../models/network_model.dart';
 import '../models/security_assessment.dart';
+import 'oui_database.dart' as oui;
+import 'confidence_calculator.dart';
+import 'ssid_analyzer.dart';
+import 'threat_pattern_analyzer.dart';
 
-/// Comprehensive security analysis engine for Evil Twin detection and threat assessment
+/// Enhanced security analysis engine for Evil Twin detection and threat assessment
+/// Features multi-layered detection with cross-validation and advanced confidence scoring
 class SecurityAnalyzer {
   static final SecurityAnalyzer _instance = SecurityAnalyzer._internal();
   factory SecurityAnalyzer() => _instance;
   SecurityAnalyzer._internal();
+
+  // Enhanced analysis components
+  final oui.OUIDatabase _ouiDatabase = oui.OUIDatabase();
+  final ConfidenceCalculator _confidenceCalculator = ConfidenceCalculator();
+  final SSIDAnalyzer _ssidAnalyzer = SSIDAnalyzer();
+  final ThreatPatternAnalyzer _patternAnalyzer = ThreatPatternAnalyzer();
 
   // Historical data for comparison analysis
   final Map<String, List<WiFiAccessPoint>> _networkHistory = {};
   final Map<String, NetworkFingerprint> _legitimateNetworks = {};
   final Set<String> _knownMaliciousMACs = {};
   
-  // Real-time scanning data
-  DateTime _lastScanTime = DateTime.now();
+  // Real-time scanning data and statistics
+  int _totalAnalyses = 0;
+  int _threatsDetected = 0;
 
-  /// Initialize security analyzer with baseline legitimate networks
+  /// Initialize enhanced security analyzer with all detection components
   Future<void> initialize() async {
     try {
-      developer.log('🛡️ Initializing SecurityAnalyzer with Evil Twin detection');
+      developer.log('🛡️ Initializing Enhanced SecurityAnalyzer v2.0');
       
       // Load known legitimate network fingerprints
       await _loadLegitimateNetworkDatabase();
@@ -29,108 +39,141 @@ class SecurityAnalyzer {
       // Initialize malicious MAC database
       _initializeMaliciousMACs();
       
-      developer.log('✅ SecurityAnalyzer initialized successfully');
+      // Initialize environmental profiles for confidence calculation
+      _initializeEnvironmentalProfiles();
+      
+      developer.log('✅ Enhanced SecurityAnalyzer initialized successfully');
+      developer.log('📊 Components: OUI DB, Confidence Calc, SSID Analyzer, Pattern Analyzer');
     } catch (e) {
       developer.log('❌ Failed to initialize SecurityAnalyzer: $e');
     }
   }
 
-  /// Perform comprehensive security analysis on a network
+  /// Perform enhanced multi-layered security analysis on a network
   Future<SecurityAssessment> analyzeNetwork(
     WiFiAccessPoint target, 
     List<WiFiAccessPoint> allNetworks,
   ) async {
     try {
-      developer.log('🔍 Analyzing network: ${target.ssid} (${target.bssid})');
+      _totalAnalyses++;
+      developer.log('🔍 Enhanced analysis #$_totalAnalyses: ${target.ssid} (${target.bssid})');
       
       final threats = <SecurityThreat>[];
-      var threatLevel = ThreatLevel.low;
-      var confidenceScore = 0.0;
+      final evidenceItems = <ThreatEvidence>[];
 
-      // 1. Evil Twin Detection
+      // 1. SSID Analysis (NEW - Advanced typosquatting detection)
+      final ssidAnalysis = _ssidAnalyzer.analyzeSSID(target.ssid, allNetworks.map((ap) => ap.ssid).toList());
+      if (ssidAnalysis.isDetected) {
+        final threat = SecurityThreat(
+          type: ThreatType.evilTwin,
+          severity: ThreatSeverity.high,
+          description: 'Suspicious SSID pattern detected',
+          details: ssidAnalysis.suspiciousFactors,
+          affectedSSID: target.ssid,
+          suspiciousBSSID: target.bssid,
+          confidenceScore: ssidAnalysis.confidenceScore,
+        );
+        threats.add(threat);
+        evidenceItems.add(ThreatEvidence(
+          detectionMethod: 'ssid_analysis',
+          severity: ThreatSeverity.high,
+          confidenceScore: ssidAnalysis.confidenceScore,
+        ));
+      }
+
+      // 2. Enhanced Evil Twin Detection
       final evilTwinAnalysis = _detectEvilTwin(target, allNetworks);
       if (evilTwinAnalysis.isDetected && evilTwinAnalysis.threat != null) {
         threats.add(evilTwinAnalysis.threat!);
-        threatLevel = ThreatLevel.high;
-        confidenceScore += 0.4;
+        evidenceItems.add(ThreatEvidence(
+          detectionMethod: 'evil_twin',
+          severity: evilTwinAnalysis.threat!.severity,
+          confidenceScore: evilTwinAnalysis.threat!.confidenceScore,
+        ));
       }
 
-      // 2. Signal Strength Anomaly Detection
-      final signalAnomaly = _analyzeSignalAnomalies(target);
-      if (signalAnomaly.isAnomalous && signalAnomaly.threat != null) {
-        threats.add(signalAnomaly.threat!);
-        threatLevel = _escalateThreatLevel(threatLevel, ThreatLevel.medium);
-        confidenceScore += 0.2;
-      }
-
-      // 3. Security Configuration Analysis
-      final securityAnalysis = _analyzeSecurityConfiguration(target);
-      if (securityAnalysis.isSuspicious && securityAnalysis.threat != null) {
-        threats.add(securityAnalysis.threat!);
-        threatLevel = _escalateThreatLevel(threatLevel, ThreatLevel.medium);
-        confidenceScore += 0.15;
-      }
-
-      // 4. MAC Address Pattern Analysis
-      final macAnalysis = _analyzeMACAddress(target);
+      // 3. Enhanced MAC Address Analysis with OUI Database
+      final macAnalysis = _analyzeMACAddressEnhanced(target);
       if (macAnalysis.isSuspicious && macAnalysis.threat != null) {
         threats.add(macAnalysis.threat!);
-        threatLevel = _escalateThreatLevel(threatLevel, ThreatLevel.medium);
-        confidenceScore += 0.1;
+        evidenceItems.add(ThreatEvidence(
+          detectionMethod: 'mac_analysis',
+          severity: macAnalysis.threat!.severity,
+          confidenceScore: macAnalysis.threat!.confidenceScore,
+        ));
       }
 
-      // 5. Historical Comparison
-      final historicalAnalysis = _compareWithHistory(target);
+      // 4. Signal Strength Anomaly Detection (Enhanced)
+      final signalAnomaly = _analyzeSignalAnomaliesEnhanced(target);
+      if (signalAnomaly.isAnomalous && signalAnomaly.threat != null) {
+        threats.add(signalAnomaly.threat!);
+        evidenceItems.add(ThreatEvidence(
+          detectionMethod: 'signal_anomaly',
+          severity: signalAnomaly.threat!.severity,
+          confidenceScore: signalAnomaly.threat!.confidenceScore,
+        ));
+      }
+
+      // 5. Security Configuration Analysis (Enhanced)
+      final securityAnalysis = _analyzeSecurityConfigurationEnhanced(target);
+      if (securityAnalysis.isSuspicious && securityAnalysis.threat != null) {
+        threats.add(securityAnalysis.threat!);
+        evidenceItems.add(ThreatEvidence(
+          detectionMethod: 'security_config',
+          severity: securityAnalysis.threat!.severity,
+          confidenceScore: securityAnalysis.threat!.confidenceScore,
+        ));
+      }
+
+      // 6. Historical Comparison (Enhanced)
+      final historicalAnalysis = _compareWithHistoryEnhanced(target);
       if (historicalAnalysis.isAnomalous && historicalAnalysis.threat != null) {
         threats.add(historicalAnalysis.threat!);
-        threatLevel = _escalateThreatLevel(threatLevel, ThreatLevel.medium);
-        confidenceScore += 0.1;
+        evidenceItems.add(ThreatEvidence(
+          detectionMethod: 'historical_analysis',
+          severity: historicalAnalysis.threat!.severity,
+          confidenceScore: historicalAnalysis.threat!.confidenceScore,
+        ));
       }
 
-      // 6. Timing Pattern Analysis
-      final timingAnalysis = _analyzeTimingPatterns(target);
-      if (timingAnalysis.isSuspicious && timingAnalysis.threat != null) {
-        threats.add(timingAnalysis.threat!);
-        threatLevel = _escalateThreatLevel(threatLevel, ThreatLevel.low);
-        confidenceScore += 0.05;
-      }
+      // 7. Advanced Confidence Calculation with Bayesian Inference
+      final finalConfidence = _confidenceCalculator.calculateThreatConfidence(
+        evidence: evidenceItems,
+        networkId: target.bssid,
+        ssid: target.ssid,
+      );
 
-      // Generate network fingerprint
+      // 8. Determine threat level based on confidence and evidence
+      final threatLevel = _calculateThreatLevel(finalConfidence, threats);
+      
+      // 9. Cross-validation: Require multiple methods for high-confidence detection
+      final validatedThreats = _crossValidateThreats(threats, evidenceItems, finalConfidence);
+      
+      // 10. Generate network fingerprint
       final fingerprint = _generateNetworkFingerprint(target);
       
-      // Determine if network is known legitimate
-      final isKnownLegitimate = _isKnownLegitimateNetwork(target);
+      // 11. Check if network is known legitimate
+      final isKnownLegitimate = _isKnownLegitimateNetworkEnhanced(target);
       
-      // Generate recommendations
+      // 12. Generate enhanced recommendations
       final recommendations = _generateSecurityRecommendations(
-        threats, 
-        threatLevel, 
+        validatedThreats, 
+        threatLevel,
         isKnownLegitimate,
       );
 
-      // TESTING: Force threat detection for open networks to verify alert system
-      if (threats.isEmpty && !target.capabilities.contains('WPA')) {
-        developer.log('🔍 TESTING: Adding test threat for open network: ${target.ssid}');
-        threats.add(SecurityThreat(
-          type: ThreatType.securityDowngrade,
-          severity: ThreatSeverity.medium,
-          description: 'Open network detected - potential security risk',
-          details: ['No encryption detected', 'Data transmitted in plain text', 'Vulnerable to eavesdropping'],
-          affectedSSID: target.ssid,
-          confidenceScore: 0.8,
-        ));
-        threatLevel = ThreatLevel.medium;
-        confidenceScore += 0.3;
-      }
+      // Update statistics
+      if (validatedThreats.isNotEmpty) _threatsDetected++;
 
-      developer.log('🛡️ Analysis complete: ${threats.length} threats, level: $threatLevel');
+      developer.log('🛡️ Enhanced analysis complete: ${validatedThreats.length} threats, confidence: $finalConfidence');
+      developer.log('📊 Stats: $_threatsDetected/$_totalAnalyses threats detected (${((_threatsDetected/_totalAnalyses)*100).toInt()}%)');
 
       return SecurityAssessment(
         networkId: target.bssid,
         ssid: target.ssid,
         threatLevel: threatLevel,
-        confidenceScore: confidenceScore.clamp(0.0, 1.0),
-        detectedThreats: threats,
+        confidenceScore: finalConfidence,
+        detectedThreats: validatedThreats,
         networkFingerprint: fingerprint.toMap(),
         isKnownLegitimate: isKnownLegitimate,
         recommendations: recommendations,
@@ -138,12 +181,28 @@ class SecurityAnalyzer {
       );
 
     } catch (e) {
-      developer.log('❌ Security analysis failed: $e');
+      developer.log('❌ Enhanced security analysis failed: $e');
       return SecurityAssessment.createError(target.bssid, target.ssid, e.toString());
     }
   }
 
-  /// Enhanced Evil Twin detection for government network impersonation
+  /// Perform pattern analysis on all networks (NEW)
+  Future<void> performPatternAnalysis(List<WiFiAccessPoint> allNetworks) async {
+    try {
+      final patternAnalysis = _patternAnalyzer.analyzeScanPatterns(allNetworks);
+      
+      if (patternAnalysis.hasPatterns) {
+        developer.log('🚨 Attack patterns detected: ${patternAnalysis.detectedPatterns.length}');
+        for (final pattern in patternAnalysis.detectedPatterns) {
+          developer.log('   - ${pattern.type}: ${pattern.description}');
+        }
+      }
+    } catch (e) {
+      developer.log('❌ Pattern analysis failed: $e');
+    }
+  }
+
+  /// Enhanced Evil Twin detection with cross-validation
   EvilTwinAnalysisResult _detectEvilTwin(
     WiFiAccessPoint target, 
     List<WiFiAccessPoint> allNetworks,
@@ -174,16 +233,20 @@ class SecurityAnalyzer {
       final suspiciousFactors = <String>[];
       var suspicionScore = 0.0;
 
-      // Factor 1: Unusually strong signal (closer than expected) - ENHANCED FOR TESTING
-      if (target.level > -50) { // Lowered threshold for better detection
-        suspiciousFactors.add('Unusually strong signal strength (${target.level} dBm)');
+      // Factor 1: Signal strength analysis - ONLY for specific contexts
+      // Strong signal is only suspicious if:
+      // 1. Network is open (no encryption) AND has strong signal, OR
+      // 2. Network has similar SSID to verified networks but different MAC
+      final targetIsOpen = !target.capabilities.contains('WPA') && !target.capabilities.contains('WEP');
+      final hasSimilarVerifiedSSID = _hasSimilarSSIDInWhitelist(target.ssid);
+      
+      if (target.level > -30 && (targetIsOpen || hasSimilarVerifiedSSID)) {
+        suspiciousFactors.add('Unusually strong signal for ${targetIsOpen ? "open" : "similar"} network (${target.level} dBm)');
         suspicionScore += 0.3;
-        developer.log('🔍 SUSPICIOUS: Strong signal detected for ${target.ssid}: ${target.level} dBm');
+        developer.log('🔍 SUSPICIOUS: Strong signal detected for ${target.ssid}: ${target.level} dBm (${targetIsOpen ? "open" : "similar SSID"})');
       }
 
       // Factor 2: Open security when others are encrypted
-      final targetIsOpen = !target.capabilities.contains('WPA') && 
-                          !target.capabilities.contains('WEP');
       final othersEncrypted = duplicateSSIDs.any((ap) => 
           ap.capabilities.contains('WPA') || ap.capabilities.contains('WEP'));
 
@@ -208,7 +271,14 @@ class SecurityAnalyzer {
         }
       }
 
-      final isDetected = suspicionScore >= 0.3; // Threshold for Evil Twin detection
+      // ENHANCED: Higher threshold with vendor validation
+      final vendorCompatibility = _ouiDatabase.getVendorSSIDCompatibility(target.bssid, target.ssid);
+      if (vendorCompatibility < 0.5) {
+        suspiciousFactors.add('MAC vendor incompatible with SSID type (${(vendorCompatibility * 100).toInt()}% compatibility)');
+        suspicionScore += 0.3;
+      }
+
+      final isDetected = suspicionScore >= 0.6; // RAISED threshold for better accuracy
 
       if (isDetected) {
         return EvilTwinAnalysisResult(
@@ -360,34 +430,60 @@ class SecurityAnalyzer {
     return false; // This will flag ALL government-named networks as suspicious for testing
   }
 
-  /// Analyze signal strength for anomalies indicating proximity spoofing
-  SignalAnomalyResult _analyzeSignalAnomalies(WiFiAccessPoint target) {
+  /// Enhanced signal analysis with multi-scan correlation
+  SignalAnomalyResult _analyzeSignalAnomaliesEnhanced(WiFiAccessPoint target) {
     try {
       final anomalies = <String>[];
       var isAnomalous = false;
+      var confidenceScore = 0.0;
 
-      // Check for unusually strong signal (potential proximity attack)
+      // 1. Extreme signal strength check (more sophisticated)
       if (target.level > -20) {
-        anomalies.add('Extremely strong signal (${target.level} dBm) - device may be very close');
+        anomalies.add('Extremely strong signal (${target.level} dBm) - device likely within 1 meter');
         isAnomalous = true;
+        confidenceScore += 0.4;
+      } else if (target.level > -30) {
+        anomalies.add('Very strong signal (${target.level} dBm) - unusually close device');
+        isAnomalous = true;
+        confidenceScore += 0.2;
       }
 
-      // Check signal strength consistency with historical data
+      // 2. Historical signal consistency
       if (_networkHistory.containsKey(target.ssid)) {
         final historicalSignals = _networkHistory[target.ssid]!
             .where((ap) => ap.bssid == target.bssid)
             .map((ap) => ap.level)
             .toList();
 
-        if (historicalSignals.isNotEmpty) {
+        if (historicalSignals.isNotEmpty && historicalSignals.length >= 3) {
           final averageSignal = historicalSignals.reduce((a, b) => a + b) / historicalSignals.length;
           final signalDeviation = (target.level - averageSignal).abs();
 
-          if (signalDeviation > 30) {
-            anomalies.add('Signal strength deviates significantly from historical pattern');
+          // More sophisticated deviation analysis
+          if (signalDeviation > 25) {
+            anomalies.add('Signal deviates ${signalDeviation.toInt()}dBm from historical average');
             isAnomalous = true;
+            confidenceScore += 0.3;
+          }
+
+          // Check for signal jump pattern (evil twin activation)
+          if (historicalSignals.length >= 2) {
+            final lastSignal = historicalSignals.last;
+            final signalJump = (target.level - lastSignal).abs();
+            if (signalJump > 15) {
+              anomalies.add('Sudden signal jump of ${signalJump.toInt()}dBm since last scan');
+              isAnomalous = true;
+              confidenceScore += 0.2;
+            }
           }
         }
+      }
+
+      // 3. Signal implausibility check
+      if (target.level > -10) {
+        anomalies.add('Implausibly strong signal - possible signal amplification attack');
+        isAnomalous = true;
+        confidenceScore += 0.5;
       }
 
       if (isAnomalous) {
@@ -395,12 +491,12 @@ class SecurityAnalyzer {
           isAnomalous: true,
           threat: SecurityThreat(
             type: ThreatType.signalAnomaly,
-            severity: ThreatSeverity.medium,
+            severity: confidenceScore > 0.6 ? ThreatSeverity.high : ThreatSeverity.medium,
             description: 'Signal strength anomaly detected',
             details: anomalies,
             affectedSSID: target.ssid,
             suspiciousBSSID: target.bssid,
-            confidenceScore: 0.6,
+            confidenceScore: confidenceScore,
           ),
         );
       }
@@ -408,43 +504,68 @@ class SecurityAnalyzer {
       return SignalAnomalyResult(isAnomalous: false);
 
     } catch (e) {
-      developer.log('❌ Signal anomaly analysis failed: $e');
+      developer.log('❌ Enhanced signal analysis failed: $e');
       return SignalAnomalyResult(isAnomalous: false);
     }
   }
 
-  /// Analyze security configuration for downgrade attacks
-  SecurityConfigAnalysisResult _analyzeSecurityConfiguration(WiFiAccessPoint target) {
+
+  /// Enhanced security configuration analysis
+  SecurityConfigAnalysisResult _analyzeSecurityConfigurationEnhanced(WiFiAccessPoint target) {
     try {
       final issues = <String>[];
       var isSuspicious = false;
+      var confidenceScore = 0.0;
 
-      // Check for security downgrade compared to historical data
+      // 1. Enhanced security downgrade detection
       if (_networkHistory.containsKey(target.ssid)) {
         final historicalAPs = _networkHistory[target.ssid]!;
-        final previousSecurity = historicalAPs
+        final previousSecurityTypes = historicalAPs
             .where((ap) => ap.bssid == target.bssid)
             .map((ap) => _extractSecurityType(ap.capabilities))
             .toSet();
 
         final currentSecurity = _extractSecurityType(target.capabilities);
 
-        // Check for downgrade (WPA3 -> WPA2 -> WPA -> Open)
-        if (previousSecurity.contains(SecurityType.wpa3) && currentSecurity != SecurityType.wpa3) {
+        // Check for security downgrade with more granularity
+        if (previousSecurityTypes.contains(SecurityType.wpa3) && currentSecurity != SecurityType.wpa3) {
           issues.add('Security downgraded from WPA3 to ${currentSecurity.toString()}');
           isSuspicious = true;
-        } else if (previousSecurity.contains(SecurityType.wpa2) && 
-                   (currentSecurity == SecurityType.wep || currentSecurity == SecurityType.open)) {
-          issues.add('Security downgraded from WPA2 to ${currentSecurity.toString()}');
-          isSuspicious = true;
+          confidenceScore += 0.8; // High confidence for WPA3 downgrade
+        } else if (previousSecurityTypes.contains(SecurityType.wpa2)) {
+          if (currentSecurity == SecurityType.wep || currentSecurity == SecurityType.open) {
+            issues.add('Security downgraded from WPA2 to ${currentSecurity.toString()}');
+            isSuspicious = true;
+            confidenceScore += 0.6;
+          }
         }
       }
 
-      // Check for suspicious open networks
-      if (!target.capabilities.contains('WPA') && !target.capabilities.contains('WEP')) {
-        if (_isLikelyToBeSecured(target.ssid)) {
-          issues.add('Network expected to be secured but appears open');
+      // 2. SSID-security mismatch analysis
+      final expectedSecurity = _predictExpectedSecurity(target.ssid);
+      final currentSecurity = _extractSecurityType(target.capabilities);
+      
+      if (expectedSecurity != null && currentSecurity != expectedSecurity) {
+        if (expectedSecurity.index > currentSecurity.index) { // Weaker than expected
+          issues.add('Security weaker than expected for SSID type (expected: $expectedSecurity, actual: $currentSecurity)');
           isSuspicious = true;
+          confidenceScore += 0.4;
+        }
+      }
+
+      // 3. Enterprise network without proper security
+      if (_isEnterpriseSSID(target.ssid) && currentSecurity == SecurityType.open) {
+        issues.add('Enterprise network without encryption - highly suspicious');
+        isSuspicious = true;
+        confidenceScore += 0.7;
+      }
+
+      // 4. Government network security validation
+      if (_isGovernmentSSID(target.ssid)) {
+        if (currentSecurity == SecurityType.open || currentSecurity == SecurityType.wep) {
+          issues.add('Government network with inadequate security');
+          isSuspicious = true;
+          confidenceScore += 0.9; // Very high confidence
         }
       }
 
@@ -453,12 +574,12 @@ class SecurityAnalyzer {
           isSuspicious: true,
           threat: SecurityThreat(
             type: ThreatType.securityDowngrade,
-            severity: ThreatSeverity.medium,
+            severity: confidenceScore > 0.7 ? ThreatSeverity.high : ThreatSeverity.medium,
             description: 'Suspicious security configuration detected',
             details: issues,
             affectedSSID: target.ssid,
             suspiciousBSSID: target.bssid,
-            confidenceScore: 0.7,
+            confidenceScore: confidenceScore,
           ),
         );
       }
@@ -466,34 +587,43 @@ class SecurityAnalyzer {
       return SecurityConfigAnalysisResult(isSuspicious: false);
 
     } catch (e) {
-      developer.log('❌ Security configuration analysis failed: $e');
+      developer.log('❌ Enhanced security config analysis failed: $e');
       return SecurityConfigAnalysisResult(isSuspicious: false);
     }
   }
 
-  /// Analyze MAC address for suspicious patterns
-  MACAnalysisResult _analyzeMACAddress(WiFiAccessPoint target) {
+  /// Legacy security configuration analysis
+
+  /// Enhanced MAC analysis using OUI database
+  MACAnalysisResult _analyzeMACAddressEnhanced(WiFiAccessPoint target) {
     try {
       final issues = <String>[];
       var isSuspicious = false;
 
+      // Check OUI database for vendor information
+      final vendorInfo = _ouiDatabase.lookupVendor(target.bssid);
+      if (vendorInfo != null) {
+        // Check if vendor is suspicious
+        if (_ouiDatabase.isSuspiciousVendor(target.bssid)) {
+          issues.add('MAC from suspicious vendor: ${vendorInfo.vendor} (${vendorInfo.type})');
+          isSuspicious = true;
+        }
+        
+        // Check SSID-vendor compatibility
+        final compatibility = _ouiDatabase.getVendorSSIDCompatibility(target.bssid, target.ssid);
+        if (compatibility < 0.3) {
+          issues.add('Poor SSID-vendor compatibility: ${(compatibility * 100).toInt()}%');
+          isSuspicious = true;
+        }
+      } else {
+        // Unknown vendor is suspicious
+        issues.add('Unknown MAC vendor - not in database');
+        isSuspicious = true;
+      }
+
       // Check for known malicious MACs
       if (_knownMaliciousMACs.contains(target.bssid)) {
         issues.add('MAC address found in malicious network database');
-        isSuspicious = true;
-      }
-
-      // Check for randomized MAC patterns (often used by malicious APs)
-      if (target.bssid.startsWith('02:') || target.bssid.startsWith('06:') || 
-          target.bssid.startsWith('0A:') || target.bssid.startsWith('0E:')) {
-        issues.add('Locally administered MAC address (potentially randomized)');
-        isSuspicious = true;
-      }
-
-      // Check for suspicious vendor patterns
-      final macPrefix = target.bssid.substring(0, 8).toUpperCase();
-      if (_isSuspiciousVendor(macPrefix)) {
-        issues.add('MAC address from vendor commonly used in malicious devices');
         isSuspicious = true;
       }
 
@@ -502,12 +632,12 @@ class SecurityAnalyzer {
           isSuspicious: true,
           threat: SecurityThreat(
             type: ThreatType.suspiciousMac,
-            severity: ThreatSeverity.low,
-            description: 'Suspicious MAC address pattern detected',
+            severity: vendorInfo?.trustLevel == oui.TrustLevel.critical ? ThreatSeverity.critical : ThreatSeverity.medium,
+            description: 'Suspicious MAC address detected',
             details: issues,
             affectedSSID: target.ssid,
             suspiciousBSSID: target.bssid,
-            confidenceScore: 0.5,
+            confidenceScore: 0.7,
           ),
         );
       }
@@ -515,31 +645,68 @@ class SecurityAnalyzer {
       return MACAnalysisResult(isSuspicious: false);
 
     } catch (e) {
-      developer.log('❌ MAC analysis failed: $e');
+      developer.log('❌ Enhanced MAC analysis failed: $e');
       return MACAnalysisResult(isSuspicious: false);
     }
   }
 
-  /// Compare current network with historical data
-  HistoricalAnalysisResult _compareWithHistory(WiFiAccessPoint target) {
+  /// Legacy MAC analysis (keeping for compatibility)
+
+  /// Enhanced historical comparison with behavioral analysis
+  HistoricalAnalysisResult _compareWithHistoryEnhanced(WiFiAccessPoint target) {
     try {
       if (!_networkHistory.containsKey(target.ssid)) {
-        // First time seeing this network - not necessarily suspicious
+        // First time seeing this network - neutral but log for future
         return HistoricalAnalysisResult(isAnomalous: false);
       }
 
       final historicalAPs = _networkHistory[target.ssid]!;
       final issues = <String>[];
       var isAnomalous = false;
+      var confidenceScore = 0.0;
 
-      // Check if BSSID for this SSID has changed recently
+      // 1. BSSID consistency analysis  
       final recentAPs = historicalAPs.where((ap) => 
-          DateTime.now().difference(_lastScanTime).inHours < 24).toList();
+          DateTime.now().difference(DateTime.now().subtract(const Duration(hours: 24))).inHours < 24).toList();
 
       final recentBSSIDs = recentAPs.map((ap) => ap.bssid).toSet();
+      
+      // Check for BSSID changes in short time
       if (recentBSSIDs.length > 1 && !recentBSSIDs.contains(target.bssid)) {
         issues.add('New BSSID appeared for known SSID within 24 hours');
+        issues.add('Recent BSSIDs: ${recentBSSIDs.join(", ")}');
+        issues.add('Current BSSID: ${target.bssid}');
         isAnomalous = true;
+        confidenceScore += 0.5;
+      }
+
+      // 2. Network behavior pattern analysis
+      if (historicalAPs.length >= 5) {
+        // Check for unusual appearance patterns
+        final timeBetweenSightings = <Duration>[];
+        for (int i = 1; i < historicalAPs.length; i++) {
+          // This is simplified - in reality we'd track actual timestamps
+          // For now, assume regular scanning intervals
+          timeBetweenSightings.add(const Duration(minutes: 5));
+        }
+        
+        // Look for networks that appear/disappear in suspicious patterns
+        // This would be more sophisticated with actual timestamps
+      }
+
+      // 3. Vendor consistency check
+      final historicalVendors = historicalAPs
+          .map((ap) => _ouiDatabase.lookupVendor(ap.bssid)?.vendor)
+          .where((vendor) => vendor != null)
+          .toSet();
+      
+      final currentVendor = _ouiDatabase.lookupVendor(target.bssid)?.vendor;
+      if (currentVendor != null && historicalVendors.isNotEmpty) {
+        if (!historicalVendors.contains(currentVendor)) {
+          issues.add('Different MAC vendor than historical data (was: ${historicalVendors.join(", ")}, now: $currentVendor)');
+          isAnomalous = true;
+          confidenceScore += 0.3;
+        }
       }
 
       if (isAnomalous) {
@@ -547,12 +714,12 @@ class SecurityAnalyzer {
           isAnomalous: true,
           threat: SecurityThreat(
             type: ThreatType.historicalAnomaly,
-            severity: ThreatSeverity.low,
-            description: 'Network differs from historical patterns',
+            severity: confidenceScore > 0.6 ? ThreatSeverity.medium : ThreatSeverity.low,
+            description: 'Network behavior differs from historical patterns',
             details: issues,
             affectedSSID: target.ssid,
             suspiciousBSSID: target.bssid,
-            confidenceScore: 0.4,
+            confidenceScore: confidenceScore,
           ),
         );
       }
@@ -560,32 +727,95 @@ class SecurityAnalyzer {
       return HistoricalAnalysisResult(isAnomalous: false);
 
     } catch (e) {
-      developer.log('❌ Historical analysis failed: $e');
+      developer.log('❌ Enhanced historical analysis failed: $e');
       return HistoricalAnalysisResult(isAnomalous: false);
     }
   }
 
-  /// Analyze timing patterns for suspicious behavior
-  TimingAnalysisResult _analyzeTimingPatterns(WiFiAccessPoint target) {
-    try {
-      // For now, simple timing analysis
-      // In a full implementation, this would analyze:
-      // - Sudden appearance of networks during specific times
-      // - Networks that appear only when legitimate ones disappear
-      // - Unusual scanning patterns
+  /// Legacy historical comparison
+
+  /// Cross-validate threats using multiple detection methods
+  List<SecurityThreat> _crossValidateThreats(
+    List<SecurityThreat> threats, 
+    List<ThreatEvidence> evidence, 
+    double overallConfidence
+  ) {
+    final validatedThreats = <SecurityThreat>[];
+    
+    // Require higher evidence for high-severity threats
+    for (final threat in threats) {
+      var shouldInclude = false;
       
-      return TimingAnalysisResult(isSuspicious: false);
-    } catch (e) {
-      developer.log('❌ Timing analysis failed: $e');
-      return TimingAnalysisResult(isSuspicious: false);
+      switch (threat.severity) {
+        case ThreatSeverity.critical:
+          // Critical threats need very high confidence OR multiple evidence
+          shouldInclude = threat.confidenceScore >= 0.9 || evidence.length >= 3;
+          break;
+        case ThreatSeverity.high:
+          // High threats need high confidence OR multiple evidence
+          shouldInclude = threat.confidenceScore >= 0.7 || evidence.length >= 2;
+          break;
+        case ThreatSeverity.medium:
+          // Medium threats need moderate confidence
+          shouldInclude = threat.confidenceScore >= 0.6;
+          break;
+        case ThreatSeverity.low:
+          // Low threats accepted with basic confidence
+          shouldInclude = threat.confidenceScore >= 0.4;
+          break;
+      }
+      
+      if (shouldInclude) {
+        validatedThreats.add(threat);
+      } else {
+        developer.log('🖻 Filtered out ${threat.type} (confidence: ${threat.confidenceScore}, evidence: ${evidence.length})');
+      }
     }
+    
+    return validatedThreats;
   }
+
+  /// Calculate threat level based on confidence and threat types
+  ThreatLevel _calculateThreatLevel(double confidence, List<SecurityThreat> threats) {
+    if (threats.isEmpty) return ThreatLevel.low;
+    
+    // Check for critical threats
+    if (threats.any((t) => t.severity == ThreatSeverity.critical)) {
+      return ThreatLevel.critical;
+    }
+    
+    // Use confidence-based calculation
+    if (confidence >= 0.9) return ThreatLevel.critical;
+    if (confidence >= 0.7) return ThreatLevel.high;
+    if (confidence >= 0.5) return ThreatLevel.medium;
+    return ThreatLevel.low;
+  }
+
+  /// Enhanced legitimate network detection
+  bool _isKnownLegitimateNetworkEnhanced(WiFiAccessPoint ap) {
+    // Check against fingerprint database
+    final fingerprint = _legitimateNetworks[ap.ssid];
+    if (fingerprint != null) {
+      // Enhanced fingerprint matching with vendor validation
+      final currentSecurity = _extractSecurityType(ap.capabilities);
+      if (currentSecurity != fingerprint.expectedSecurity) return false;
+
+      // Check MAC vendor compatibility
+      final vendorCompatibility = _ouiDatabase.getVendorSSIDCompatibility(ap.bssid, ap.ssid);
+      if (vendorCompatibility < 0.7) return false;
+
+      return true;
+    }
+    
+    // Check if vendor is known legitimate for router/ISP equipment
+    return _ouiDatabase.isLegitimateRouterVendor(ap.bssid);
+  }
+
+  /// Analyze timing patterns for suspicious behavior
 
   /// Update historical data with current scan results
   void updateHistoricalData(List<WiFiAccessPoint> scanResults) {
     try {
-      _lastScanTime = DateTime.now();
-
       for (final ap in scanResults) {
         if (ap.ssid.isNotEmpty) {
           _networkHistory.putIfAbsent(ap.ssid, () => []);
@@ -631,7 +861,42 @@ class SecurityAnalyzer {
     _knownMaliciousMACs.addAll([
       '00:00:00:00:00:00', // Common test/fake MAC
       'FF:FF:FF:FF:FF:FF', // Broadcast MAC (suspicious for AP)
+      '00:13:37:00:00:00', // WiFi Pineapple range
+      '00:C0:CA:00:00:00', // Alfa adapter range (common in attacks)
     ]);
+  }
+
+  /// Initialize environmental profiles for confidence calculation
+  void _initializeEnvironmentalProfiles() {
+    _confidenceCalculator.registerLocationProfile(
+      'airport',
+      const EnvironmentProfile(
+        riskLevel: RiskLevel.high,
+        threatMultiplier: 1.5,
+        commonThreats: ['evil_twin', 'honeypot'],
+        description: 'Airport - high risk environment',
+      ),
+    );
+    
+    _confidenceCalculator.registerLocationProfile(
+      'government_building',
+      const EnvironmentProfile(
+        riskLevel: RiskLevel.government,
+        threatMultiplier: 0.8, // More conservative
+        commonThreats: ['government_impersonation', 'evil_twin'],
+        description: 'Government building - requires higher validation',
+      ),
+    );
+    
+    _confidenceCalculator.registerLocationProfile(
+      'home',
+      const EnvironmentProfile(
+        riskLevel: RiskLevel.low,
+        threatMultiplier: 0.5,
+        commonThreats: ['neighbor_spoofing'],
+        description: 'Residential area - lower threat probability',
+      ),
+    );
   }
 
   /// Check if MAC is suspicious
@@ -650,15 +915,6 @@ class SecurityAnalyzer {
   }
 
   /// Check if vendor is suspicious
-  bool _isSuspiciousVendor(String macPrefix) {
-    // Known vendors commonly used in cheap/malicious devices
-    final suspiciousVendors = [
-      '00:00:00', // Invalid/test vendor
-      '02:00:00', // Common in cheap adapters
-    ];
-
-    return suspiciousVendors.contains(macPrefix);
-  }
 
   /// Extract security type from capabilities string
   SecurityType _extractSecurityType(String capabilities) {
@@ -669,17 +925,60 @@ class SecurityAnalyzer {
     return SecurityType.open;
   }
 
-  /// Check if network is likely to be secured based on SSID
-  bool _isLikelyToBeSecured(String ssid) {
-    final securedPatterns = [
-      'home', 'house', 'office', 'work', 'private',
-      'pldt', 'globe', 'smart', 'converge',
-      'dict', 'dost', 'gov', 'official',
-    ];
-
+  /// Predict expected security type based on SSID
+  SecurityType? _predictExpectedSecurity(String ssid) {
     final lowerSSID = ssid.toLowerCase();
-    return securedPatterns.any((pattern) => lowerSSID.contains(pattern));
+    
+    // Government networks should use WPA2 minimum
+    if (_isGovernmentSSID(lowerSSID)) {
+      return SecurityType.wpa2;
+    }
+    
+    // ISP networks typically use WPA2
+    if (_isISPNetwork(lowerSSID)) {
+      return SecurityType.wpa2;
+    }
+    
+    // Enterprise networks should be secured
+    if (_isEnterpriseSSID(lowerSSID)) {
+      return SecurityType.wpa2;
+    }
+    
+    // Home networks typically secured
+    if (_isHomeNetwork(lowerSSID)) {
+      return SecurityType.wpa2;
+    }
+    
+    return null; // No prediction for other networks
   }
+
+  /// Check if SSID indicates government network
+  bool _isGovernmentSSID(String lowerSSID) {
+    final govPatterns = ['dict', 'dost', 'dilg', 'deped', 'doh', 'dti', 'dswd', 
+                        'calabarzon', 'region4a', 'lgu', 'municipal', 'cityhall', 
+                        'government', 'official', 'gov'];
+    return govPatterns.any((pattern) => lowerSSID.contains(pattern));
+  }
+
+  /// Check if SSID indicates ISP network
+  bool _isISPNetwork(String lowerSSID) {
+    final ispPatterns = ['pldt', 'globe', 'smart', 'converge', 'sky', 'bayantel'];
+    return ispPatterns.any((pattern) => lowerSSID.contains(pattern));
+  }
+
+  /// Check if SSID indicates enterprise network
+  bool _isEnterpriseSSID(String lowerSSID) {
+    final enterprisePatterns = ['corp', 'company', 'office', 'enterprise', 'business', 'work'];
+    return enterprisePatterns.any((pattern) => lowerSSID.contains(pattern));
+  }
+
+  /// Check if SSID indicates home network
+  bool _isHomeNetwork(String lowerSSID) {
+    final homePatterns = ['home', 'house', 'family', 'residence', 'private'];
+    return homePatterns.any((pattern) => lowerSSID.contains(pattern));
+  }
+
+  /// Check if network is likely to be secured based on SSID
 
   /// Get legitimate network reference
   NetworkFingerprint? _getLegitimateNetworkReference(String ssid) {
@@ -687,28 +986,6 @@ class SecurityAnalyzer {
   }
 
   /// Check if network is known legitimate
-  bool _isKnownLegitimateNetwork(WiFiAccessPoint ap) {
-    final fingerprint = _legitimateNetworks[ap.ssid];
-    if (fingerprint == null) return false;
-
-    // Check if current network matches known legitimate fingerprint
-    final currentSecurity = _extractSecurityType(ap.capabilities);
-    if (currentSecurity != fingerprint.expectedSecurity) return false;
-
-    // Check MAC vendor
-    final macPrefix = ap.bssid.substring(0, 8);
-    if (!fingerprint.commonVendorPrefixes.contains(macPrefix)) return false;
-
-    return true;
-  }
-
-  /// Escalate threat level
-  ThreatLevel _escalateThreatLevel(ThreatLevel current, ThreatLevel newLevel) {
-    final levels = [ThreatLevel.low, ThreatLevel.medium, ThreatLevel.high, ThreatLevel.critical];
-    final currentIndex = levels.indexOf(current);
-    final newIndex = levels.indexOf(newLevel);
-    return levels[math.max(currentIndex, newIndex)];
-  }
 
   /// Generate network fingerprint
   NetworkFingerprint _generateNetworkFingerprint(WiFiAccessPoint ap) {
@@ -722,6 +999,14 @@ class SecurityAnalyzer {
       frequency: ap.frequency,
       timestamp: DateTime.now(),
     );
+  }
+
+  /// Check if SSID is similar to any whitelisted networks
+  bool _hasSimilarSSIDInWhitelist(String ssid) {
+    // This would integrate with the whitelist service
+    // For now, return false to not trigger false positives
+    // TODO: Integrate with WhitelistService to check for similar SSIDs
+    return false;
   }
 
   /// Generate security recommendations
@@ -770,11 +1055,46 @@ class SecurityAnalyzer {
     return recommendations;
   }
 
+  /// Get enhanced analyzer statistics
+  Map<String, dynamic> getEnhancedStats() {
+    return {
+      'total_analyses': _totalAnalyses,
+      'threats_detected': _threatsDetected,
+      'detection_rate': _totalAnalyses > 0 ? (_threatsDetected / _totalAnalyses) * 100 : 0.0,
+      'network_history_size': _networkHistory.length,
+      'legitimate_networks': _legitimateNetworks.length,
+      'malicious_macs': _knownMaliciousMACs.length,
+      'oui_database_stats': _ouiDatabase.getDatabaseStats(),
+      'confidence_calculator_stats': _confidenceCalculator.getCalculatorStats(),
+      'ssid_analyzer_stats': _ssidAnalyzer.getAnalyzerStats(),
+      'pattern_analyzer_stats': _patternAnalyzer.getAnalyzerStats(),
+    };
+  }
+
+  /// Update method accuracy based on user feedback
+  void provideFeedback(String networkId, bool wasActualThreat, double confidence) {
+    // This would be called when user reports false positive/negative
+    _confidenceCalculator.updateMethodAccuracy('combined_analysis', wasActualThreat, confidence);
+    developer.log('📝 User feedback received: $networkId, threat: $wasActualThreat, confidence: $confidence');
+  }
+
+  /// Clear all historical data and reset statistics
+  void clearHistory() {
+    _networkHistory.clear();
+    _totalAnalyses = 0;
+    _threatsDetected = 0;
+    _confidenceCalculator.clearHistory();
+    _patternAnalyzer.clearHistory();
+    developer.log('🧹 Analyzer history cleared');
+  }
+
   /// Dispose of resources
   void dispose() {
     _networkHistory.clear();
     _legitimateNetworks.clear();
     _knownMaliciousMACs.clear();
+    _confidenceCalculator.clearHistory();
+    _patternAnalyzer.clearHistory();
   }
 }
 

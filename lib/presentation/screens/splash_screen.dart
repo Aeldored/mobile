@@ -769,7 +769,7 @@ class _SplashScreenState extends State<SplashScreen>
         developer.log('  - Firebase enabled: ${networkProvider.firebaseEnabled}');
         developer.log('  - Whitelist entries: ${networkProvider.getWhitelistEntries().length}');
         developer.log('  - Alert provider ready: ${alertProvider.alerts.isNotEmpty || true}');
-        developer.log('  - Settings loaded: ${settingsProvider.showVerifiedNetworks != null}');
+        developer.log('  - Settings loaded: ${settingsProvider.locationEnabled}');
         
         // Ensure minimum loading time for smooth UX
         await Future.delayed(const Duration(milliseconds: 500));

@@ -839,11 +839,12 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> with TickerProvid
         actions: [
           TextButton(
             onPressed: () async {
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
               await Clipboard.setData(ClipboardData(text: data));
               if (!mounted) return;
-              Navigator.pop(context);
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
+              navigator.pop();
+              messenger.showSnackBar(
                 const SnackBar(
                   content: Text('Data copied to clipboard'),
                   backgroundColor: AppColors.success,

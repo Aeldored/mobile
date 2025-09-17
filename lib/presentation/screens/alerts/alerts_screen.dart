@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/alert_model.dart';
 import '../../../data/models/network_model.dart';
+import '../../../data/models/security_assessment.dart';
 import '../../../providers/alert_provider.dart';
 import '../../../providers/network_provider.dart';
 import '../threats/manual_threat_report_screen.dart';

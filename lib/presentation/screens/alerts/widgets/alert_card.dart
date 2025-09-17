@@ -256,9 +256,9 @@ class AlertCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(4),
                             border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
                           ),
-                          child: Row(
+                          child: const Row(
                             mainAxisSize: MainAxisSize.min,
-                            children: const [
+                            children: [
                               Icon(Icons.check_circle, size: 16, color: AppColors.success),
                               SizedBox(width: 4),
                               Text(

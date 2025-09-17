@@ -3,6 +3,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/models/threat_report_model.dart';
 import '../../../data/models/scan_history_model.dart';
 import '../../../data/models/network_model.dart';
+import '../../../data/models/security_assessment.dart';
 import '../../../data/models/alert_model.dart';
 import '../../../data/services/threat_reporting_service.dart';
 import '../../../data/services/scan_history_service.dart';

@@ -365,3 +365,33 @@ class SecurityAssessment {
     return 'SecurityAssessment(ssid: $ssid, level: $threatLevel, threats: ${detectedThreats.length}, score: $securityScore)';
   }
 }
+
+/// Security type enumeration for network analysis
+enum SecurityType {
+  open,
+  wep,
+  wpa2,
+  wpa3;
+  
+  @override
+  String toString() {
+    switch (this) {
+      case SecurityType.open:
+        return 'Open';
+      case SecurityType.wep:
+        return 'WEP';
+      case SecurityType.wpa2:
+        return 'WPA2';
+      case SecurityType.wpa3:
+        return 'WPA3';
+    }
+  }
+}
+
+/// Trust level for MAC address vendors
+enum TrustLevel {
+  high,
+  medium,
+  low,
+  critical,
+}

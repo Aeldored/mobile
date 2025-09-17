@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import '../models/network_model.dart';
+import '../models/security_assessment.dart';
 import 'native_wifi_controller.dart';
 
 /// Service for validating real network connectivity and persistence

@@ -505,45 +505,45 @@ class _AllArticlesScreenState extends State<AllArticlesScreen>
               
               const Text('Categories:', style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
-              Row(
+              const Row(
                 children: [
-                  const Text('🎭', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 4),
+                  Text('🎭', style: TextStyle(fontSize: 16)),
+                  SizedBox(width: 4),
                   Expanded(child: Text('Evil Twins: Rogue access points')),
                 ],
               ),
-              Row(
+              const Row(
                 children: [
-                  const Text('🔒', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 4),
+                  Text('🔒', style: TextStyle(fontSize: 16)),
+                  SizedBox(width: 4),
                   Expanded(child: Text('Wi-Fi Security: Network protection')),
                 ],
               ),
-              Row(
+              const Row(
                 children: [
-                  const Text('🛡️', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 4),
+                  Text('🛡️', style: TextStyle(fontSize: 16)),
+                  SizedBox(width: 4),
                   Expanded(child: Text('Public Safety: Safe browsing practices')),
                 ],
               ),
-              Row(
+              const Row(
                 children: [
-                  const Text('🎣', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 4),
+                  Text('🎣', style: TextStyle(fontSize: 16)),
+                  SizedBox(width: 4),
                   Expanded(child: Text('Phishing: Email and web threats')),
                 ],
               ),
-              Row(
+              const Row(
                 children: [
-                  const Text('📱', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 4),
+                  Text('📱', style: TextStyle(fontSize: 16)),
+                  SizedBox(width: 4),
                   Expanded(child: Text('Device Security: Mobile protection')),
                 ],
               ),
-              Row(
+              const Row(
                 children: [
-                  const Text('🏛️', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 4),
+                  Text('🏛️', style: TextStyle(fontSize: 16)),
+                  SizedBox(width: 4),
                   Expanded(child: Text('Guidelines: Government policies')),
                 ],
               ),

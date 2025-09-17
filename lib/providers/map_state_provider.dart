@@ -14,8 +14,8 @@ class MapStateProvider extends ChangeNotifier {
   DateTime? _lastLocationUpdateTime;
   bool _hasCustomCameraPosition = false;
   
-  // Default map center (CALABARZON region)
-  static const LatLng _defaultCenter = LatLng(14.1, 121.1);
+  // Default map center (CALABARZON region) - updated to match web dashboard
+  static const LatLng _defaultCenter = LatLng(14.296990, 121.459040);
   static const double _defaultZoom = 9.0;
   
   // Cache duration for location (30 minutes)

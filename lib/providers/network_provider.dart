@@ -1051,7 +1051,7 @@ class NetworkProvider extends ChangeNotifier {
       
       final normalizedName = _normalizeNetworkName(network.name);
       networkGroups.putIfAbsent(normalizedName, () => []).add(network);
-      developer.log('🔍 EVIL TWIN DEBUG: Network "${network.name}" normalized to "${normalizedName}" (MAC: ${network.macAddress}, Status: ${network.status.name})');
+      developer.log('🔍 EVIL TWIN DEBUG: Network "${network.name}" normalized to "$normalizedName" (MAC: ${network.macAddress}, Status: ${network.status.name})');
     }
     
     developer.log('🔍 EVIL TWIN DEBUG: Found ${networkGroups.length} unique network name groups');
@@ -2376,7 +2376,7 @@ class NetworkProvider extends ChangeNotifier {
       }
     }
     
-    developer.log('🔍 Alert generation complete: ${suspiciousCount} suspicious, ${flaggedCount} flagged networks processed');
+    developer.log('🔍 Alert generation complete: $suspiciousCount suspicious, $flaggedCount flagged networks processed');
     
     // Generate summary alert only for manual scans
     if (_hasPerformedScan && _lastScanTime != null && _isManualScan) {

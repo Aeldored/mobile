@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/network_model.dart';
+import '../../data/models/security_assessment.dart';
 
 /// Modern Wi-Fi connection dialog that properly handles Android limitations
 /// Provides clear user guidance instead of misleading password prompts

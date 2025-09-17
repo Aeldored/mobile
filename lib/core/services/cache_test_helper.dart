@@ -136,7 +136,7 @@ class CacheTestHelper {
     
     developer.log('📊 Cache Memory Analysis:');
     developer.log('   📦 Total Entries: ${stats.length}');
-    developer.log('   💾 Total Size: ${totalBytes} bytes (${totalKB.toStringAsFixed(2)} KB)');
+    developer.log('   💾 Total Size: $totalBytes bytes (${totalKB.toStringAsFixed(2)} KB)');
     
     if (totalMB > 1) {
       developer.log('   ⚠️ Cache size is ${totalMB.toStringAsFixed(2)} MB - consider cleanup');

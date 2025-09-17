@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 import '../models/network_model.dart';
+import '../models/security_assessment.dart';
 import 'native_wifi_controller.dart';
 
 class SavedNetworksService {

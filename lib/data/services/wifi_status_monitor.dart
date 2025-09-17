@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'native_wifi_controller.dart';
 import 'wifi_connection_service.dart' show WiFiConnectionService;
 import '../models/network_model.dart';
+import '../models/security_assessment.dart';
 import '../models/wifi_connection_result.dart';
 
 /// Service that monitors Wi-Fi connection status and provides real-time updates

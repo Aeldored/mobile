@@ -54,11 +54,11 @@ class GeocodingService {
     'Dolores': {'lat': 13.9431, 'lng': 121.4164, 'province': 'Quezon'},
   };
 
-  // CALABARZON region bounds
-  static const double _northBound = 15.0;
+  // CALABARZON region bounds - extended to match web dashboard coverage
+  static const double _northBound = 15.5;
   static const double _southBound = 13.0;
-  static const double _eastBound = 122.0;
-  static const double _westBound = 120.0;
+  static const double _eastBound = 123.0;
+  static const double _westBound = 120.2;
 
   /// Check if coordinates are within CALABARZON region
   bool isWithinCalabarzon(double latitude, double longitude) {
@@ -135,7 +135,7 @@ class GeocodingService {
 
   /// Get center coordinates for CALABARZON region
   LatLng getCalabarzonCenter() {
-    return const LatLng(14.0, 121.0); // Roughly center of CALABARZON
+    return const LatLng(14.296990, 121.459040); // Updated to match web dashboard center
   }
 
   /// Get bounds for CALABARZON region

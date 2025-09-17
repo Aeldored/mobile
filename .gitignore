@@ -68,3 +68,5 @@ key.properties
 local.properties
 keystore.properties
 build/reports/problems/problems-report.html
+build/reports/problems/problems-report.html
+.gitignore

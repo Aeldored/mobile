@@ -3,6 +3,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/network_model.dart';
+import '../models/security_assessment.dart';
 import 'permission_service.dart';
 import 'wifi_status_monitor.dart';
 

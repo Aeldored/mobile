@@ -1,5 +1,6 @@
 import 'dart:developer' as developer;
 import '../models/network_model.dart';
+import '../models/security_assessment.dart';
 import '../models/alert_model.dart';
 import '../models/scan_history_model.dart';
 import 'scan_history_service.dart';
