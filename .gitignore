@@ -67,3 +67,4 @@ key.properties
 # Sensitive local development files
 local.properties
 keystore.properties
+build/reports/problems/problems-report.html
